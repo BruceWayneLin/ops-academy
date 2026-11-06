@@ -73,18 +73,18 @@ function renderTop() {
 }
 
 function renderSide() {
-  let o = '<a class="side-home' + (active === 'home' ? ' on' : '') + '" href="#/">' + L('Roadmap', '課程地圖') + '</a>';
+  let o = '<a class="side-home' + (active === 'home' ? ' on' : '') + '" href="#home">' + L('Roadmap', '課程地圖') + '</a>';
   MODS.forEach(m => {
     const d = m.lessons.filter(l => S.done[l.id]).length;
     const here = BY[active] && BY[active].mod === m;
     const isOpen = openMods[m.id] !== undefined ? openMods[m.id] : here;
     o += '<details class="mod" data-mod="' + m.id + '"' + (isOpen ? ' open' : '') + '><summary><span class="mn">' + m.n + '</span><span class="mt">' + esc(mTitle(m)) + '</span><span class="mc">' + d + '/' + m.lessons.length + '</span></summary><ol>';
     m.lessons.forEach(l => {
-      o += '<li><a href="#/l/' + l.id + '" class="' + (l.id === active ? 'on ' : '') + (S.done[l.id] ? 'done' : '') + '"><span class="tick"></span><span>' + esc(lTitle(l)) + '</span></a></li>';
+      o += '<li><a href="#' + l.id + '" class="' + (l.id === active ? 'on ' : '') + (S.done[l.id] ? 'done' : '') + '"><span class="tick"></span><span>' + esc(lTitle(l)) + '</span></a></li>';
     });
     o += '</ol></details>';
   });
-  o += '<div class="side-links"><a href="#/review">' + L('Review quiz', '複習測驗') + '</a><a href="#/tools">' + L('Calculators', '計算機') + '</a><a href="#/glossary">' + L('Glossary 中英對照', '詞彙表 中英對照') + '</a></div>';
+  o += '<div class="side-links"><a href="#review">' + L('Review quiz', '複習測驗') + '</a><a href="#tools">' + L('Calculators', '計算機') + '</a><a href="#glossary">' + L('Glossary 中英對照', '詞彙表 中英對照') + '</a></div>';
   const side = $('#side');
   const y = side.scrollTop;
   side.innerHTML = o;
@@ -117,7 +117,7 @@ function showAnswer(qEl, q, ai) {
   const w = $('.why', qEl);
   w.hidden = false;
   w.innerHTML = (ai === q.c ? '<b class="ok">' + L('Correct.', '答對了。') + '</b> ' : '<b class="no">' + L('Not quite.', '不太對。') + '</b> ') + q.why +
-    (q.from ? ' <a href="#/l/' + q.from.id + '">' + L('Lesson ' + q.from.num, '第 ' + q.from.num + ' 課') + '</a>' : '');
+    (q.from ? ' <a href="#' + q.from.id + '">' + L('Lesson ' + q.from.num, '第 ' + q.from.num + ' 課') + '</a>' : '');
 }
 
 /* ---------- views ---------- */
@@ -130,7 +130,7 @@ function viewHome() {
     '<p class="lead">' + L(
       'Every topic starts with what the thing is and what it is for, then goes down to the level a senior engineer works at. The practice tasks use your own servers, so finishing the course also leaves you with a portfolio to show an employer.',
       '每個主題都從「這是什麼、做什麼用」開始，一路講到資深工程師實際在用的深度。練習題用你自己的伺服器來做，所以整門課走完，你手上也會有一份可以給雇主看的作品集。') + '</p>' +
-    '<div class="hero-row"><a class="btn" href="#/l/' + next.id + '">' + verb + L(': ', '：') + next.num + ' ' + esc(lTitle(next)) + ' &rarr;</a>' +
+    '<div class="hero-row"><a class="btn" href="#' + next.id + '">' + verb + L(': ', '：') + next.num + ' ' + esc(lTitle(next)) + ' &rarr;</a>' +
     '<span class="small">' + L(done + ' of ' + ALL.length + ' lessons done', '已完成 ' + done + '／' + ALL.length + ' 課') + '</span></div></section>';
 
   o += '<section class="levels">';
@@ -145,7 +145,7 @@ function viewHome() {
   MODS.forEach(m => {
     const d = m.lessons.filter(l => S.done[l.id]).length;
     const go = m.lessons.find(l => !S.done[l.id]) || m.lessons[0];
-    o += '<a class="card" href="#/l/' + go.id + '"><div class="card-top"><span>' + L('Module ', '模組 ') + m.n + '</span><span>' + esc(mTime(m)) + '</span></div><h3>' + esc(mTitle(m)) + '</h3><p class="zh">' + esc(zhOn() ? m.title : m.zh) + '</p><p>' + esc(mBlurb(m)) + '</p><div class="bar"><i style="width:' + (d / m.lessons.length * 100) + '%"></i></div><div class="card-top" style="margin-top:6px"><span>' + d + ' / ' + m.lessons.length + L(' lessons', ' 課') + '</span></div></a>';
+    o += '<a class="card" href="#' + go.id + '"><div class="card-top"><span>' + L('Module ', '模組 ') + m.n + '</span><span>' + esc(mTime(m)) + '</span></div><h3>' + esc(mTitle(m)) + '</h3><p class="zh">' + esc(zhOn() ? m.title : m.zh) + '</p><p>' + esc(mBlurb(m)) + '</p><div class="bar"><i style="width:' + (d / m.lessons.length * 100) + '%"></i></div><div class="card-top" style="margin-top:6px"><span>' + d + ' / ' + m.lessons.length + L(' lessons', ' 課') + '</span></div></a>';
   });
   o += '</div>';
 
@@ -164,10 +164,7 @@ function viewHome() {
     '<li><b>這門課給不了的：</b>多年的值班經驗。它能把一位在職開發者帶到 DevOps 與資安職缺的錄取線；專家等級要在工作上磨，第 4 級的課讓你先看到那是什麼樣子。</li>') +
     '</ul></div>';
 
-  o += '<h2>' + L('Study on another device', '換裝置繼續學') + '</h2><div class="how sync"><p>' + L(
-    'Your progress is saved in this browser only. To carry it to your phone or another computer, copy the code here and paste it there.',
-    '進度只存在這個瀏覽器裡。要帶到手機或另一台電腦：在這裡複製進度碼，到另一台裝置貼上。') +
-    '</p><p><button type="button" class="btn ghost" data-act="exportprog">' + L('Copy my progress code', '複製我的進度碼') + '</button> <button type="button" class="btn ghost" data-act="importprog">' + L('Paste a progress code', '貼上進度碼') + '</button> <span class="small" id="sync-msg"></span></p></div>';
+  o += '<h2>' + L('Study on another device', '換裝置繼續學') + '</h2><div class="how sync" id="sync-box">' + syncHTML() + '</div>';
 
   o += '<h2>' + L('Free places to practise, and the books worth owning', '免費的練習場，以及值得買的書') + '</h2><ul class="res">' +
     '<li><a href="https://killercoda.com/playgrounds" target="_blank" rel="noopener">Killercoda</a>' + L(': real Linux and Kubernetes machines in the browser. Nothing runs on your own computer.', '：瀏覽器裡的真 Linux 與 Kubernetes 機器，不佔你電腦的資源。') + '</li>' +
@@ -189,7 +186,7 @@ function viewLesson(l) {
   const z = zl(l);
   const tries = l.try || [];
   let o = '<article class="lesson">';
-  o += '<p class="crumb"><a href="#/">' + L('Roadmap', '課程地圖') + '</a> / ' + L('Module ', '模組 ') + l.mod.n + ' · ' + esc(mTitle(l.mod)) + '</p>';
+  o += '<p class="crumb"><a href="#home">' + L('Roadmap', '課程地圖') + '</a> / ' + L('Module ', '模組 ') + l.mod.n + ' · ' + esc(mTitle(l.mod)) + '</p>';
   o += '<h1><span class="num">' + l.num + '</span>' + esc(lTitle(l)) + '</h1>';
   if (z) o += '<p class="entitle">' + esc(l.title) + '</p>';
   o += '<p class="meta"><span class="badge lv' + lvn + '">' + L(LV[lvn][0] + ' ' + LV[lvn][1], LV[lvn][1] + ' ' + LV[lvn][0]) + '</span><span>' +
@@ -208,7 +205,7 @@ function viewLesson(l) {
   const own = (z && z.own) || l.own;
   if (own) o += '<section><h2>' + L('On your own stack', '用你自己的系統練習') + '</h2><div class="own"><p>' + own + '</p></div></section>';
   if (PRIV[l.id]) {
-    o += '<section><h2>' + L('Your private notes (stored only on this computer)', '你的私人筆記（只存在這台電腦，不會發布）') + '</h2><div class="own priv"><p>' + (PRIV[l.id][LANG] || PRIV[l.id].en) + '</p></div></section>';
+    o += '<section><h2>' + L('Your private notes', '你的私人筆記') + '</h2><div class="own priv"><p>' + (PRIV[l.id][LANG] || PRIV[l.id].en) + '</p></div></section>';
   }
   if (l.terms && l.terms.length) {
     o += '<section><h2>' + L('Key terms', '關鍵詞彙') + '</h2><div class="termlist">' + l.terms.map(t => '<span class="term"><b>' + esc(t[0]) + '</b>' + esc(t[1]) + '</span>').join('') + '</div></section>';
@@ -217,7 +214,7 @@ function viewLesson(l) {
   if (currentQuiz.length) {
     o += '<section class="quiz"><h2>' + L('Check yourself', '自我檢查') + '</h2>' + quizHTML(currentQuiz) + '<button type="button" class="linkbtn" data-act="resetquiz">' + L('Clear my answers', '清除我的作答') + '</button></section>';
   }
-  o += '<div class="foot">' + (prev ? '<a class="btn ghost" href="#/l/' + prev.id + '">&larr; ' + prev.num + ' ' + esc(lTitle(prev)) + '</a>' : '<span></span>') +
+  o += '<div class="foot">' + (prev ? '<a class="btn ghost" href="#' + prev.id + '">&larr; ' + prev.num + ' ' + esc(lTitle(prev)) + '</a>' : '<span></span>') +
     '<span>' + (S.done[l.id] ? '<button type="button" class="linkbtn" data-act="undone">' + L('Mark as not done', '改回未完成') + '</button> ' : '') +
     '<button type="button" class="btn" data-act="done">' + (S.done[l.id] ? L('Completed', '已完成') : L('Mark complete', '標記完成')) + (next ? L(' · next &rarr;', ' · 下一課 &rarr;') : '') + '</button></span></div>';
   o += '</article>';
@@ -251,7 +248,7 @@ function viewGlossary() {
     '<input class="w-in gl-in" id="gl-q" type="search" placeholder="' + L('Filter terms', '篩選詞彙') + '"><table class="tbl"><thead><tr><th>English</th><th>繁體中文</th><th>' + L('Taught in', '出自') + '</th></tr></thead><tbody id="gl-b"></tbody></table></article>';
   const draw = v => {
     $('#gl-b').innerHTML = rows.filter(r => !v || r.en.toLowerCase().includes(v) || r.zh.includes(v))
-      .map(r => '<tr><td><b>' + esc(r.en) + '</b></td><td>' + esc(r.zh) + '</td><td><a href="#/l/' + r.l.id + '">' + r.l.num + ' ' + esc(lTitle(r.l)) + '</a></td></tr>').join('');
+      .map(r => '<tr><td><b>' + esc(r.en) + '</b></td><td>' + esc(r.zh) + '</td><td><a href="#' + r.l.id + '">' + r.l.num + ' ' + esc(lTitle(r.l)) + '</a></td></tr>').join('');
   };
   draw('');
   $('#gl-q').addEventListener('input', e => draw(e.target.value.trim().toLowerCase()));
@@ -481,7 +478,7 @@ W.stages = function (el) {
     let o = '<h4>' + L('Stage ' + (i + 1) + ': ', '第 ' + (i + 1) + ' 階段：') + B(s.name) + '</h4><p class="small">' + B(s.users) + L(' (very rough, it depends on the product)', '（非常粗略，依產品而定）') + '</p><div class="tiers">';
     Object.keys(s.tiers).forEach(k => { o += '<b>' + B(TIER[k]) + '</b><div>' + s.tiers[k].map(x => '<span class="box' + (x[1] ? ' hot' : '') + '">' + B(x[0]) + '</span>').join('') + '</div>'; });
     o += '</div><p class="small">' + L('Green boxes are new at this stage.', '綠色的方塊是這一階段新增的。') + '</p><dl><dt>' + L('What pushed you here', '是什麼把你逼到這一步') + '</dt><dd>' + B(s.why) + '</dd><dt>' + L('The new problem you own', '你多出來的新問題') + '</dt><dd>' + B(s.cost) + '</dd><dt>' + L('Lessons', '相關課程') + '</dt><dd>' +
-      s.links.filter(id => BY[id]).map(id => '<a href="#/l/' + id + '">' + BY[id].num + ' ' + esc(lTitle(BY[id])) + '</a>').join(' · ') + '</dd></dl>';
+      s.links.filter(id => BY[id]).map(id => '<a href="#' + id + '">' + BY[id].num + ' ' + esc(lTitle(BY[id])) + '</a>').join(' · ') + '</dd></dl>';
     $('.stage', el).innerHTML = o;
   };
   range.addEventListener('input', draw);
@@ -531,7 +528,7 @@ W.ready = function (el) {
   };
   if (!el.dataset.bound) {
     el.dataset.bound = '1';
-    el.addEventListener('change', e => { const c = e.target.closest('[data-r]'); if (c) { S.ready[c.dataset.r] = c.checked; save(); draw(); } });
+    el.addEventListener('change', e => { const c = e.target.closest('[data-r]'); if (c) { S.ready[c.dataset.r] = c.checked; touch(); draw(); } });
   }
   draw();
 };
@@ -550,9 +547,73 @@ function importCode(code) {
   ['done', 'quiz', 'ready'].forEach(k => {
     if (o[k] && typeof o[k] === 'object') Object.keys(o[k]).forEach(id => { if (o[k][id]) S[k][id] = o[k][id]; });
   });
-  save();
+  touch();
   return true;
 }
+
+/* ---------- progress saved with the page (only inside claude.ai) ---------- */
+let cloud = null;
+let cloudState = (window.claude && typeof window.claude.use === 'function') ? 'connecting' : 'off';
+let pushTimer = null, pushing = false, pushAgain = false;
+
+const hasProgress = () => Object.keys(S.done).length + Object.keys(S.quiz).length + Object.keys(S.ready).length > 0;
+/* Call after every change to progress: stamps it, saves locally, and queues one write to the store. */
+function touch() { S.t = Date.now(); save(); schedulePush(); }
+function schedulePush() { if (!cloud) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 900); }
+async function pushNow() {
+  if (!cloud) return;
+  if (pushing) { pushAgain = true; return; }
+  pushing = true;
+  try {
+    await cloud.ref.set(JSON.parse(JSON.stringify({ v: 1, t: S.t || 0, done: S.done, quiz: S.quiz, ready: S.ready, last: S.last || '' })));
+  } catch (e) {
+    const c = e && e.code;
+    if (c === 'invalid_argument' || c === 'revoked' || c === 'not_granted' || c === 'capability_disabled') { cloud = null; cloudState = 'unavailable'; updateSyncNote(); }
+  }
+  pushing = false;
+  if (pushAgain) { pushAgain = false; schedulePush(); }
+}
+function adopt(d) {
+  ['done', 'quiz', 'ready'].forEach(k => { S[k] = (d[k] && typeof d[k] === 'object') ? JSON.parse(JSON.stringify(d[k])) : {}; });
+  if (d.last && BY[d.last]) S.last = d.last;
+  S.t = d.t || 0;
+  save();
+  route(true);
+}
+function startCloud() {
+  if (cloudState === 'off') return;
+  const fail = () => { cloud = null; cloudState = 'unavailable'; updateSyncNote(); };
+  Promise.all([window.claude.use('db'), window.claude.use('user')]).then(res => {
+    const db = res[0], user = res[1];
+    if (!db) return fail();
+    Promise.resolve(user ? user.isOwner() : false).then(owner => {
+      if (!owner) return fail();
+      let ref;
+      try { ref = db.doc('sync/progress'); } catch (e) { return fail(); }
+      cloud = { ref: ref };
+      let first = true;
+      const timer = setTimeout(() => { if (cloudState === 'connecting') { cloudState = 'slow'; updateSyncNote(); } }, 10000);
+      ref.onSnapshot(snap => {
+        const meta = snap.metadata || {};
+        if (meta.hasPendingWrites) return;
+        if (!meta.fromCache) { clearTimeout(timer); if (cloudState !== 'on') { cloudState = 'on'; updateSyncNote(); } }
+        const d = snap.exists ? snap.data() : null;
+        if (d && (d.t || 0) > (S.t || 0)) adopt(d);
+        else if (first && !meta.fromCache && hasProgress() && (!d || (S.t || 0) > (d.t || 0))) schedulePush();
+        if (!meta.fromCache) first = false;
+      }, () => { clearTimeout(timer); fail(); });
+    }, fail);
+  }, fail);
+}
+function syncHTML() {
+  if (cloudState === 'on') return '<p>' + L('Your progress is saved with this page. Open the page on any device where you are signed in to Claude and it will be there.', '進度會跟著這個頁面存起來。在任何登入 Claude 的裝置打開這一頁，進度都在。') + '</p>';
+  if (cloudState === 'connecting') return '<p>' + L('Looking for your saved progress.', '正在讀取你存下來的進度。') + '</p>';
+  if (cloudState === 'slow') return '<p>' + L('Your saved progress cannot be reached yet. What you do now is kept on this device and saved when the connection returns.', '暫時連不上你存下來的進度。現在做的會先留在這台裝置，等連上了再存回去。') + '</p>';
+  return '<p>' + L('Your progress is saved in this browser only. To carry it to your phone or another computer, copy the code here and paste it there.', '進度只存在這個瀏覽器裡。要帶到手機或另一台電腦：在這裡複製進度碼，到另一台裝置貼上。') + '</p>' +
+    '<p><button type="button" class="btn ghost" data-act="exportprog">' + L('Copy my progress code', '複製我的進度碼') + '</button></p>' +
+    '<p class="sync-row"><input class="w-in" id="sync-in" type="text" autocomplete="off" placeholder="' + L('Paste a progress code here', '把進度碼貼在這裡') + '"><button type="button" class="btn ghost" data-act="importprog">' + L('Load this code', '載入這組進度') + '</button><span class="small" id="sync-msg"></span></p>';
+}
+function updateSyncNote() { const b = $('#sync-box'); if (b) b.innerHTML = syncHTML(); }
 
 /* ---------- events ---------- */
 function copyText(text, btn, doneLabel) {
@@ -582,7 +643,7 @@ main.addEventListener('click', e => {
       const id = quizCtx.lesson.id;
       S.quiz[id] = S.quiz[id] || {};
       S.quiz[id][qi] = ai;
-      save();
+      touch();
     } else if (quizCtx && quizCtx.mode === 'review') {
       quizCtx.n++; if (ai === q.c) quizCtx.right++;
       const sc = $('#rv-score');
@@ -599,28 +660,28 @@ main.addEventListener('click', e => {
   const a = act.dataset.act;
   const l = BY[active];
   if (a === 'done' && l) {
-    S.done[l.id] = true; save();
+    S.done[l.id] = true; touch();
     const next = ALL[l.i + 1];
-    if (next) location.hash = '#/l/' + next.id; else location.hash = '#/';
+    if (next) location.hash = '#' + next.id; else location.hash = '#home';
   } else if (a === 'undone' && l) {
-    delete S.done[l.id]; save(); route(true);
+    delete S.done[l.id]; touch(); route(true);
   } else if (a === 'resetquiz' && l) {
-    delete S.quiz[l.id]; save(); route(true);
+    delete S.quiz[l.id]; touch(); route(true);
   } else if (a === 'newreview') {
     route();
   } else if (a === 'exportprog') {
     copyText(exportCode(), act);
   } else if (a === 'importprog') {
-    const code = window.prompt(L('Paste the progress code from your other device:', '貼上另一台裝置複製的進度碼：'));
-    if (code == null) return;
-    const ok = importCode(code);
-    route(true);
+    const inp = $('#sync-in');
+    const ok = importCode(inp ? inp.value : '');
+    if (ok) route(true);
     const msg = $('#sync-msg');
     if (msg) msg.textContent = ok ? L('Progress merged.', '進度已合併。') : L('That is not a valid progress code.', '這不是有效的進度碼。');
   }
 });
 
-$('#theme').addEventListener('click', () => {
+const themeBtn = $('#theme');   // absent on the claude.ai page, where the viewer's own theme applies
+if (themeBtn) themeBtn.addEventListener('click', () => {
   const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', t);
   S.theme = t; save();
@@ -648,7 +709,7 @@ $('#q').addEventListener('input', e => {
   const a = INDEX.filter(x => x.title.includes(v));
   const b = INDEX.filter(x => !x.title.includes(v) && x.text.includes(v));
   const r = a.concat(b).slice(0, 8);
-  box.innerHTML = r.length ? r.map(x => '<a href="#/l/' + x.l.id + '"><small>' + x.l.num + '</small>' + esc(lTitle(x.l)) + '</a>').join('') : '<p>' + L('No lesson matches.', '找不到相符的課。') + '</p>';
+  box.innerHTML = r.length ? r.map(x => '<a href="#' + x.l.id + '"><small>' + x.l.num + '</small>' + esc(lTitle(x.l)) + '</a>').join('') : '<p>' + L('No lesson matches.', '找不到相符的課。') + '</p>';
   box.hidden = false;
 });
 document.addEventListener('click', e => { if (!e.target.closest('.search')) $('#hits').hidden = true; });
@@ -656,13 +717,13 @@ document.addEventListener('click', e => { if (!e.target.closest('.search')) $('#
 /* ---------- router ---------- */
 function route(keepScroll) {
   const y = window.scrollY;
-  const parts = location.hash.replace(/^#\/?/, '').split('/');
+  const h = location.hash.replace(/^#\/?(l\/)?/, '');   // plain names; the older #/l/<id> form still works
   document.body.classList.remove('nav');
   $('#hits').hidden = true;
-  if (parts[0] === 'l' && BY[parts[1]]) { active = parts[1]; openMods[BY[active].mod.id] = true; viewLesson(BY[active]); }
-  else if (parts[0] === 'glossary') { active = 'glossary'; viewGlossary(); }
-  else if (parts[0] === 'tools') { active = 'tools'; viewTools(); }
-  else if (parts[0] === 'review') { active = 'review'; viewReview(); }
+  if (BY[h]) { active = h; openMods[BY[active].mod.id] = true; viewLesson(BY[active]); }
+  else if (h === 'glossary') { active = 'glossary'; viewGlossary(); }
+  else if (h === 'tools') { active = 'tools'; viewTools(); }
+  else if (h === 'review') { active = 'review'; viewReview(); }
   else { active = 'home'; viewHome(); }
   renderSide();
   renderTop();
@@ -670,4 +731,5 @@ function route(keepScroll) {
 }
 window.addEventListener('hashchange', () => route());
 route();
+startCloud();
 })();
