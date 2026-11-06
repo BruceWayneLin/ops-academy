@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ops Academy</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>
+window.COURSE = [];
+window.COURSE_ZH = [];
+window.PRIVATE_NOTES = {};
+function M(m) { COURSE.push(m); }
+function MZ(m) { COURSE_ZH.push(m); }
+function PRIVATE(o) { window.PRIVATE_NOTES = o || {}; }
+(function () {
+  var t = 'light';
+  try {
+    var s = JSON.parse(localStorage.getItem('opsAcademy.v1') || '{}');
+    t = s.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } catch (e) {}
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+</head>
+<body>
+<header class="top">
+  <button id="menu" class="icon" aria-label="Menu">&#9776;</button>
+  <a class="brand" href="#/">Ops<b>Academy</b></a>
+  <div class="prog" title="Lessons completed">
+    <div class="prog-track"><div id="prog-bar"></div></div>
+    <span id="prog-n">0 / 0</span>
+  </div>
+  <div class="search">
+    <input id="q" type="search" placeholder="Search lessons" autocomplete="off">
+    <div id="hits" hidden></div>
+  </div>
+  <button id="lang" class="icon" aria-label="Switch language">中文</button>
+  <button id="theme" class="icon" aria-label="Toggle light or dark">&#9680;</button>
+</header>
+<div class="shell">
+  <nav id="side"></nav>
+  <main id="main"></main>
+</div>
+<script src="content/m0-foundations.js"></script>
+<script src="content/m1-network.js"></script>
+<script src="content/m2-kubernetes.js"></script>
+<script src="content/m3-data.js"></script>
+<script src="content/m4-reliability.js"></script>
+<script src="content/m5-security.js"></script>
+<script src="content/m6-secpro.js"></script>
+<script src="content/m7-mis.js"></script>
+<script src="content/m8-capstone.js"></script>
+<script src="content/m9-career.js"></script>
+<script src="content/zh/m0-foundations.js"></script>
+<script src="content/zh/m1-network.js"></script>
+<script src="content/zh/m2-kubernetes.js"></script>
+<script src="content/zh/m3-data.js"></script>
+<script src="content/zh/m4-reliability.js"></script>
+<script src="content/zh/m5-security.js"></script>
+<script src="content/zh/m6-secpro.js"></script>
+<script src="content/zh/m7-mis.js"></script>
+<script src="content/zh/m8-capstone.js"></script>
+<script src="content/zh/m9-career.js"></script>
+<script>
+/* Personal notes exist only on the owner's own computer. The published site never has this file. */
+if (location.protocol === 'file:') document.write('<script src="content/private.local.js"><\/script>');
+</script>
+<script src="assets/app.js"></script>
+</body>
+</html>
