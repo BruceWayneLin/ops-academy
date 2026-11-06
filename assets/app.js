@@ -28,13 +28,28 @@ const LV = {
 };
 
 /* ---------- course data ---------- */
-const MODS = (window.COURSE || []).slice().sort((a, b) => a.n - b.n);
+/* A module may arrive in several parts (several M() calls with the same id). Their lessons are joined in load order. */
+const MODS = [];
+(function () {
+  const seen = {};
+  (window.COURSE || []).forEach(m => {
+    const t = seen[m.id];
+    if (!t) { seen[m.id] = Object.assign({}, m, { lessons: (m.lessons || []).slice() }); MODS.push(seen[m.id]); return; }
+    t.lessons = t.lessons.concat(m.lessons || []);
+    ['n', 'title', 'zh', 'time', 'blurb'].forEach(k => { if (t[k] == null && m[k] != null) t[k] = m[k]; });
+  });
+  MODS.sort((a, b) => (a.n || 0) - (b.n || 0));
+})();
 const ALL = [];
 MODS.forEach(m => m.lessons.forEach(l => { l.mod = m; l.num = m.n + '.' + (m.lessons.indexOf(l) + 1); l.i = ALL.length; ALL.push(l); }));
 const BY = {};
 ALL.forEach(l => { BY[l.id] = l; });
 const ZMOD = {}, ZLES = {};
-(window.COURSE_ZH || []).forEach(m => { ZMOD[m.id] = m; (m.lessons || []).forEach(l => { ZLES[l.id] = l; }); });
+(window.COURSE_ZH || []).forEach(m => {
+  const t = ZMOD[m.id] || (ZMOD[m.id] = {});
+  ['title', 'time', 'blurb'].forEach(k => { if (m[k]) t[k] = m[k]; });
+  (m.lessons || []).forEach(l => { ZLES[l.id] = l; });
+});
 const PRIV = window.PRIVATE_NOTES || {};
 
 const zm = m => (zhOn() && ZMOD[m.id]) || null;
@@ -530,6 +545,317 @@ W.ready = function (el) {
     el.dataset.bound = '1';
     el.addEventListener('change', e => { const c = e.target.closest('[data-r]'); if (c) { S.ready[c.dataset.r] = c.checked; touch(); draw(); } });
   }
+  draw();
+};
+
+/* ---------- pictures and demos for "how a computer works" ---------- */
+const ln = (x1, y1, x2, y2, c) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="fg-l' + (c ? ' ' + c : '') + '"/>';
+const pl = (pts, c) => '<polyline points="' + pts + '" class="fg-l' + (c ? ' ' + c : '') + '"/>';
+const tx = (x, y, t, a, c) => '<text x="' + x + '" y="' + y + '" text-anchor="' + (a || 'middle') + '" class="fg-t' + (c ? ' ' + c : '') + '">' + t + '</text>';
+const bx = (x, y, w, h, c) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="6" class="fg-b' + (c ? ' ' + c : '') + '"/>';
+const dot = (x, y, c) => '<circle cx="' + x + '" cy="' + y + '" r="3.2" class="fg-a' + (c ? ' ' + c : '') + '"/>';
+const lampS = (x, y, on) => '<circle cx="' + x + '" cy="' + y + '" r="13" class="fg-lamp' + (on ? ' on' : '') + '"/>' +
+  (on ? [0, 45, 90, 135, 180, 225, 270, 315].map(d => { const r = d * Math.PI / 180; return ln((x + 18 * Math.cos(r)).toFixed(1), (y + 18 * Math.sin(r)).toFixed(1), (x + 24 * Math.cos(r)).toFixed(1), (y + 24 * Math.sin(r)).toFixed(1), 'on'); }).join('') : '');
+/* arrow head pointing right (r), left (l), up (u) or down (d) with its tip at x,y */
+const ah = (x, y, d, c) => {
+  const p = d === 'r' ? [[x, y], [x - 8, y - 4.5], [x - 8, y + 4.5]] : d === 'l' ? [[x, y], [x + 8, y - 4.5], [x + 8, y + 4.5]] : d === 'd' ? [[x, y], [x - 4.5, y - 8], [x + 4.5, y - 8]] : [[x, y], [x - 4.5, y + 8], [x + 4.5, y + 8]];
+  return '<polygon points="' + p.map(q => q.join(',')).join(' ') + '" class="fg-a' + (c ? ' ' + c : '') + '"/>';
+};
+const svgWrap = (w, h, inner, label) => '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(label) + '" class="fg" style="width:' + w + 'px">' + inner + '</svg>';
+const figure = (el, svg, caption) => { el.innerHTML = '<figure class="figure">' + svg + '<figcaption>' + caption + '</figcaption></figure>'; };
+const bitBtn = (k, v, label) => '<button type="button" class="bit' + (v ? ' on' : '') + '" data-k="' + k + '" aria-pressed="' + (v ? 'true' : 'false') + '">' + (label != null ? '<small>' + label + '</small>' : '') + '<b>' + v + '</b></button>';
+
+/* a battery on the left, a lamp on the right, and whatever sits in the top wire between them */
+function loopSVG(mid, lit, label) {
+  const on = lit ? 'on' : '';
+  return svgWrap(380, 128,
+    ln(40, 30, 40, 52, on) + ln(27, 56, 53, 56) + ln(33, 64, 47, 64) + ln(40, 68, 40, 100, on) +
+    ln(40, 30, 110, 30, on) + mid + ln(250, 30, 320, 30, on) + ln(320, 30, 320, 50, on) + lampS(320, 64, lit) + ln(320, 78, 320, 100, on) + ln(320, 100, 40, 100, on) +
+    tx(40, 120, L('power', '電源'), 'middle', 'sm') + tx(320, 120, L('lamp', '燈'), 'middle', 'sm'), label);
+}
+/* one switch drawn between x and x+50 on the wire at height y */
+const swS = (x, y, closed, name) => dot(x, y) + dot(x + 50, y) + (closed ? ln(x, y, x + 50, y, 'on') : ln(x, y, x + 44, y - 20)) + (name ? tx(x + 25, y + 20, name, 'middle', 'sm') : '');
+
+W.circuit = function (el) {
+  let v = 0;
+  const draw = () => {
+    el.innerHTML = loopSVG(swS(110, 30, v, L('switch', '開關')) + ln(160, 30, 250, 30, v ? 'on' : ''), v, L('A battery, a switch and a lamp in a loop', '電池、開關和燈接成一圈')) +
+      '<p class="demo-row"><button type="button" class="btn" data-flip="1">' + L('Flip the switch', '撥一下開關') + '</button><span class="readout">' + (v ? L('<b>1</b> on: current flows, the lamp is lit', '<b>1</b> 開：電流通了，燈亮') : L('<b>0</b> off: the path is broken, the lamp is dark', '<b>0</b> 關：電路斷開，燈不亮')) + '</span></p>';
+  };
+  el.addEventListener('click', e => { if (e.target.closest('[data-flip]')) { v = v ? 0 : 1; draw(); } });
+  draw();
+};
+
+W.bits = function (el) {
+  const bits = [0, 0, 0, 0, 1, 1, 0, 1];
+  const draw = () => {
+    const n = bits.reduce((a, b) => a * 2 + b, 0);
+    const ch = n >= 33 && n <= 126 ? String.fromCharCode(n) : (n === 32 ? L('a space', '空白') : L('(no printable letter)', '（不是可顯示的字元）'));
+    el.innerHTML = '<div class="bitrow">' + bits.map((b, i) => bitBtn(i, b, Math.pow(2, 7 - i))).join('') + '</div>' +
+      '<div class="out">' +
+      '<div class="stat"><small>' + L('As an everyday number', '平常的數字') + '</small><b>' + n + '</b></div>' +
+      '<div class="stat"><small>' + L('As a letter', '當成字元') + '</small><b>' + esc(ch) + '</b></div>' +
+      '<div class="stat"><small>' + L('As a shade of grey', '當成灰階') + '</small><b><span class="swatch" style="background:rgb(' + n + ',' + n + ',' + n + ')"></span></b></div></div>' +
+      '<p class="small">' + L('Eight switches. The number above each one is what it is worth when it is on. The same pattern means a number, a letter or a colour, depending on what we agree it stands for.', '八個開關。每個開關上面的數字，是它打開時代表的值。同一組開與關，要當成數字、字元還是顏色，全看我們怎麼約定。') + '</p>';
+  };
+  el.addEventListener('click', e => { const b = e.target.closest('.bit'); if (b) { const k = +b.dataset.k; bits[k] = bits[k] ? 0 : 1; draw(); } });
+  draw();
+};
+
+const GATES = {
+  AND: { f: (a, b) => a & b, two: true, say: ['Both switches are in one line. Current needs both.', '兩個開關排在同一條線上，兩個都要開，電才過得去。'] },
+  OR: { f: (a, b) => a | b, two: true, say: ['The switches sit side by side. Either path will do.', '兩個開關並排，走哪一條都可以。'] },
+  NOT: { f: a => (a ? 0 : 1), two: false, say: ['The output is the opposite of the input.', '輸出永遠跟輸入相反。'] },
+  XOR: { f: (a, b) => a ^ b, two: true, say: ['The output is 1 only when the two inputs differ.', '兩個輸入不一樣，輸出才是 1。'] },
+  NAND: { f: (a, b) => ((a & b) ? 0 : 1), two: true, say: ['An AND with its answer turned upside down.', '就是 AND，再把答案反過來。'] }
+};
+
+W.gates = function (el) {
+  let g = 'AND', a = 0, b = 0;
+  const draw = () => {
+    const G = GATES[g], out = G.f(a, b);
+    let mid;
+    if (g === 'AND') mid = swS(110, 30, a, 'A') + ln(160, 30, 190, 30, a ? 'on' : '') + swS(190, 30, b, 'B') + ln(240, 30, 250, 30, out ? 'on' : '');
+    else if (g === 'OR') mid = ln(110, 22, 110, 64) + ln(110, 22, 150, 22) + ln(110, 64, 150, 64) + swS(150, 22, a, 'A') + swS(150, 64, b, 'B') +
+      ln(200, 22, 240, 22, a ? 'on' : '') + ln(200, 64, 240, 64, b ? 'on' : '') + ln(240, 22, 240, 64, out ? 'on' : '') + ln(240, 30, 250, 30, out ? 'on' : '');
+    else mid = bx(140, 12, 80, 40, 'hot') + tx(180, 37, g, 'middle', 'acc') + ln(110, 30, 140, 30) + ln(220, 30, 250, 30, out ? 'on' : '') +
+      tx(180, 70, G.two ? 'A = ' + a + '   B = ' + b : 'A = ' + a, 'middle', 'sm');
+    const rows = G.two ? [[0, 0], [0, 1], [1, 0], [1, 1]] : [[0], [1]];
+    el.innerHTML = '<div class="chips">' + Object.keys(GATES).map(k => '<button type="button" data-g="' + k + '"' + (k === g ? ' class="on"' : '') + '>' + k + '</button>').join('') + '</div>' +
+      loopSVG(mid, out, g + ' gate') +
+      '<div class="demo-row">' + bitBtn('a', a, 'A') + (G.two ? bitBtn('b', b, 'B') : '') + '<span class="readout">' + L('Output: ', '輸出：') + '<b>' + out + '</b> · ' + B(G.say) + '</span></div>' +
+      '<table class="tt"><tr><th>A</th>' + (G.two ? '<th>B</th>' : '') + '<th>' + L('Output', '輸出') + '</th></tr>' +
+      rows.map(r => '<tr' + ((r[0] === a && (!G.two || r[1] === b)) ? ' class="cur"' : '') + '><td>' + r[0] + '</td>' + (G.two ? '<td>' + r[1] + '</td>' : '') + '<td>' + G.f(r[0], r[1]) + '</td></tr>').join('') + '</table>';
+  };
+  el.addEventListener('click', e => {
+    const gb = e.target.closest('[data-g]'); if (gb) { g = gb.dataset.g; draw(); return; }
+    const bt = e.target.closest('.bit'); if (bt) { if (bt.dataset.k === 'a') a = a ? 0 : 1; else b = b ? 0 : 1; draw(); }
+  });
+  draw();
+};
+
+W['fig-transistor'] = function (el) {
+  const one = (ox, on) => ln(ox + 100, 16, ox + 100, 52, on ? 'on' : '') + bx(ox + 86, 52, 28, 46, on ? 'hot' : '') + ln(ox + 100, 98, ox + 100, 134, on ? 'on' : 'dim') +
+    (on ? ah(ox + 100, 134, 'd', 'on') : '') + ln(ox + 26, 75, ox + 74, 75, on ? 'on' : '') + ln(ox + 76, 58, ox + 76, 92, on ? 'on' : '') +
+    tx(ox + 112, 26, L('in', '入'), 'start', 'sm') + tx(ox + 112, 130, L('out', '出'), 'start', 'sm') + tx(ox + 24, 66, L('control', '控制'), 'start', 'sm') +
+    tx(ox + 100, 158, on ? L('control = 1: current flows', '控制 = 1：電流通過') : L('control = 0: no current', '控制 = 0：電流不通'), 'middle', on ? 'acc' : '');
+  figure(el, svgWrap(420, 168, one(0, false) + ln(210, 14, 210, 150, 'dim') + one(210, true), L('A transistor with its control off and on', '電晶體：控制腳沒電與有電')),
+    L('A transistor is a switch with three connections. A voltage on the control opens the path from in to out.', '電晶體是有三隻腳的開關。控制腳有電壓，「入」到「出」的路就通了。'));
+};
+
+W['fig-wafer'] = function (el) {
+  const id = 'wf' + Math.random().toString(36).slice(2, 8);
+  let grid = '';
+  for (let i = 0; i <= 8; i++) grid += ln(22 + i * 14.5, 17, 22 + i * 14.5, 133) + ln(22, 17 + i * 14.5, 138, 17 + i * 14.5);
+  let pins = '';
+  for (let i = 0; i < 5; i++) pins += ln(346 + i * 15, 46, 346 + i * 15, 54) + ln(346 + i * 15, 96, 346 + i * 15, 104) + ln(328, 60 + i * 7.5, 336, 60 + i * 7.5) + ln(416, 60 + i * 7.5, 424, 60 + i * 7.5);
+  figure(el, svgWrap(450, 168,
+    '<defs><clipPath id="' + id + '"><circle cx="80" cy="75" r="58"/></clipPath></defs>' +
+    '<g clip-path="url(#' + id + ')" opacity=".55">' + grid + '</g><circle cx="80" cy="75" r="58" class="fg-l"/>' + '<rect x="65.5" y="60.5" width="14.5" height="14.5" class="fg-b hot"/>' +
+    ln(150, 75, 196, 75) + ah(198, 75, 'r') +
+    bx(208, 47, 56, 56, 'hot') + ln(222, 61, 250, 61) + ln(222, 75, 250, 75) + ln(222, 89, 250, 89) + ln(236, 55, 236, 95) +
+    ln(276, 75, 316, 75) + ah(318, 75, 'r') +
+    bx(336, 54, 80, 42) + pins + tx(376, 80, 'CPU', 'middle', 'sm') +
+    tx(80, 156, L('wafer: round', '晶圓：圓的'), 'middle', 'sm') + tx(236, 156, L('one chip: square', '一顆晶片：方的'), 'middle', 'sm') + tx(376, 156, L('in its package', '封裝好'), 'middle', 'sm'),
+    L('A round wafer, one chip cut from it, and the chip in its package', '圓形晶圓、切下來的一顆晶片、封裝好的晶片')),
+    L('Hundreds of identical chips are printed on one round wafer, then cut apart and packaged.', '一片圓形晶圓上會印出幾百顆一模一樣的晶片，再切開、封裝。'));
+};
+
+W['fig-halfadder'] = function (el) {
+  figure(el, svgWrap(400, 150,
+    tx(30, 42, 'A') + tx(30, 116, 'B') +
+    ln(44, 38, 170, 38) + ln(90, 38, 90, 98) + ln(90, 98, 170, 98) + dot(90, 38) +
+    ln(44, 112, 170, 112) + ln(120, 112, 120, 52) + ln(120, 52, 170, 52) + dot(120, 112) +
+    bx(170, 25, 76, 40, 'hot') + tx(208, 50, 'XOR', 'middle', 'acc') + bx(170, 85, 76, 40, 'hot') + tx(208, 110, 'AND', 'middle', 'acc') +
+    ln(246, 45, 300, 45) + ah(302, 45, 'r') + ln(246, 105, 300, 105) + ah(302, 105, 'r') +
+    tx(310, 49, L('sum', '和'), 'start') + tx(310, 109, L('carry', '進位'), 'start'),
+    L('A half adder: inputs A and B feed an XOR gate and an AND gate', '半加器：A 和 B 同時接到 XOR 閘和 AND 閘')),
+    L('A half adder. Both inputs go to both gates. XOR gives the sum bit and AND gives the carry.', '半加器。兩個輸入同時送進兩個閘：XOR 算出「和」，AND 算出「進位」。'));
+};
+
+W.adder = function (el) {
+  const A = [0, 1, 1, 0], Bv = [0, 0, 1, 1];
+  const draw = () => {
+    const sum = [], carry = [0, 0, 0, 0, 0];           // carry[i] is the carry INTO column i (0 = rightmost)
+    for (let i = 0; i < 4; i++) { const a = A[3 - i], b = Bv[3 - i], c = carry[i]; sum[i] = a ^ b ^ c; carry[i + 1] = (a & b) | (c & (a ^ b)); }
+    const da = A.reduce((x, y) => x * 2 + y, 0), db = Bv.reduce((x, y) => x * 2 + y, 0);
+    const cell = (v, c) => '<td' + (c ? ' class="' + c + '"' : '') + '>' + v + '</td>';
+    el.innerHTML = '<table class="addt">' +
+      '<tr><th>' + L('carry', '進位') + '</th>' + [4, 3, 2, 1].map(i => cell(carry[i] ? '1' : '', carry[i] ? 'cy' : '')).join('') + cell('') + '</tr>' +
+      '<tr><th>A</th>' + cell('') + A.map((v, i) => '<td>' + bitBtn('a' + i, v) + '</td>').join('') + '</tr>' +
+      '<tr><th>B</th>' + cell('+') + Bv.map((v, i) => '<td>' + bitBtn('b' + i, v) + '</td>').join('') + '</tr>' +
+      '<tr class="sumr"><th>' + L('sum', '和') + '</th>' + cell(carry[4]) + [3, 2, 1, 0].map(i => cell(sum[i])).join('') + '</tr></table>' +
+      '<p class="readout big">' + da + ' + ' + db + ' = <b>' + (da + db) + '</b></p>' +
+      '<p class="small">' + L('Click the bits of A and B. Each column adds its two bits and the carry from the column on its right. A carry (green) moves one column to the left.', '點 A 和 B 的位元。每一行把自己的兩個位元，加上右邊那一行送來的進位。進位（綠色）會往左移一行。') + '</p>';
+  };
+  el.addEventListener('click', e => { const b = e.target.closest('.bit'); if (b) { const k = b.dataset.k, i = +k.slice(1); if (k[0] === 'a') A[i] = A[i] ? 0 : 1; else Bv[i] = Bv[i] ? 0 : 1; draw(); } });
+  draw();
+};
+
+W.latch = function (el) {
+  let q = 0, s = 0, r = 0, said = 0, timer = null;
+  const SAY = [
+    ['The loop is holding 0. Press Set to store a 1.', '迴圈現在撐著 0。按「設定」存進一個 1。'],
+    ['Set is pressed: the 1 enters the OR gate and travels round to the output.', '按下「設定」：這個 1 進了 OR 閘，一路走到輸出。'],
+    ['Set has been released. Nothing is pressing now. The 1 keeps going round the green loop and holds itself there. That is a remembered bit.', '「設定」已經放開，現在沒有人在按。那個 1 沿著綠色的迴圈一直繞，自己把自己撐住。這就是記住了一個位元。'],
+    ['Reset is pressed: the AND gate is cut off, so the loop is broken and the 1 drains away.', '按下「重設」：AND 閘被切斷，迴圈斷開，那個 1 就流掉了。'],
+    ['Reset has been released. The loop is whole again and now holds 0, just as firmly.', '「重設」已經放開。迴圈又接好了，現在同樣穩穩地撐著 0。']
+  ];
+  const draw = () => {
+    const orOut = s || q, notR = r ? 0 : 1, c = v => (v ? 'on' : '');
+    el.innerHTML = svgWrap(460, 172,
+      tx(18, 69, L('Set', '設定'), 'start', s ? 'acc' : '') + ln(60, 65, 120, 65, c(s)) +
+      bx(120, 30, 70, 50, 'hot') + tx(155, 60, 'OR', 'middle', 'acc') +
+      ln(190, 55, 250, 55, c(orOut)) +
+      bx(250, 40, 70, 50, 'hot') + tx(285, 70, 'AND', 'middle', 'acc') +
+      ln(320, 65, 388, 65, c(q)) + lampS(410, 65, q) + tx(410, 104, L('output', '輸出'), 'middle', 'sm') +
+      dot(350, 65, c(q)) + pl('350,65 350,20 95,20 95,45 120,45', c(q)) + ah(120, 45, 'r', c(q)) + tx(222, 13, L('the loop: output goes back in', '迴圈：輸出接回輸入'), 'middle', 'sm') +
+      tx(18, 134, L('Reset', '重設'), 'start', r ? 'acc' : '') + ln(60, 130, 120, 130, c(r)) +
+      bx(120, 113, 56, 34) + tx(148, 135, 'NOT', 'middle', 'sm') + pl('176,130 225,130 225,75 250,75', c(notR)),
+      L('A memory cell: an OR gate and an AND gate with the output wired back to the input', '記憶單元：OR 閘加 AND 閘，輸出接回輸入')) +
+      '<p class="demo-row"><button type="button" class="btn" data-m="s">' + L('Set (store 1)', '設定（存 1）') + '</button><button type="button" class="btn ghost" data-m="r">' + L('Reset (store 0)', '重設（存 0）') + '</button>' +
+      '<span class="readout">' + L('Remembered value: ', '記住的值：') + '<b>' + q + '</b></span></p><p class="small">' + B(SAY[said]) + '</p>';
+  };
+  const pulse = which => {
+    clearTimeout(timer);
+    if (which === 's') { s = 1; r = 0; q = 1; said = 1; } else { r = 1; s = 0; q = 0; said = 3; }
+    draw();
+    timer = setTimeout(() => { s = 0; r = 0; said = which === 's' ? 2 : 4; draw(); }, 1100);
+  };
+  el.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b) pulse(b.dataset.m); });
+  draw();
+};
+
+W.ram = function (el) {
+  const mem = [7, 0, 42, 0, 0, 13, 0, 0];
+  let cur = 5, msg = null;
+  const draw = () => {
+    el.innerHTML = '<div class="ramrow">' + mem.map((v, i) => '<button type="button" class="ramcell' + (i === cur ? ' on' : '') + '" data-i="' + i + '"><small>' + L('box ', '格子 ') + i + '</small><b>' + v + '</b></button>').join('') + '</div>' +
+      '<p class="demo-row"><label class="small">' + L('Address', '位址') + ' <input class="w-in" type="number" min="0" max="7" value="' + cur + '" data-f="addr" style="width:64px"></label>' +
+      '<label class="small">' + L('Value', '值') + ' <input class="w-in" type="number" min="0" max="255" value="' + mem[cur] + '" data-f="val" style="width:80px"></label>' +
+      '<button type="button" class="btn ghost" data-m="read">' + L('Read', '讀') + '</button><button type="button" class="btn" data-m="write">' + L('Write', '寫') + '</button></p>' +
+      '<p class="small">' + (msg || L('Memory is a row of numbered boxes. To use one you give its number, the address. Pick a box, then read it or write a new value into it.', '記憶體是一排編了號的格子。要用哪一格，就報它的號碼，也就是位址。選一格，然後讀它，或寫一個新的值進去。')) + '</p>';
+  };
+  const clamp = (v, hi) => Math.max(0, Math.min(hi, Math.round(+v) || 0));
+  el.addEventListener('click', e => {
+    const c = e.target.closest('.ramcell'); if (c) { cur = +c.dataset.i; msg = null; draw(); return; }
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    cur = clamp($('[data-f=addr]', el).value, 7);
+    if (b.dataset.m === 'write') { mem[cur] = clamp($('[data-f=val]', el).value, 255); msg = L('Wrote ' + mem[cur] + ' into box ' + cur + '. Whatever was there before is gone.', '把 ' + mem[cur] + ' 寫進格子 ' + cur + '。原本放在裡面的東西就不見了。'); }
+    else msg = L('Box ' + cur + ' holds ' + mem[cur] + '. Reading does not change it.', '格子 ' + cur + ' 裡面是 ' + mem[cur] + '。讀它不會改變內容。');
+    draw();
+  });
+  draw();
+};
+
+W['fig-clock'] = function (el) {
+  let wave = '30,84', marks = '';
+  for (let i = 0; i < 4; i++) { const x = 60 + i * 90; wave += ' ' + x + ',84 ' + x + ',40 ' + (x + 45) + ',40 ' + (x + 45) + ',84'; marks += ln(x, 30, x, 16, 'on') + ah(x, 34, 'd', 'on') + tx(x, 11, L('tick', '滴'), 'middle', 'acc'); }
+  wave += ' 420,84';
+  figure(el, svgWrap(440, 128, tx(16, 44, '1', 'middle', 'sm') + tx(16, 88, '0', 'middle', 'sm') + pl(wave) + marks +
+    ln(60, 104, 150, 104, 'dim') + ln(60, 99, 60, 109, 'dim') + ln(150, 99, 150, 109, 'dim') + tx(105, 121, L('one cycle', '一個週期'), 'middle', 'sm'),
+    L('A clock signal: a square wave with a tick at each rise', '時脈訊號：方波，每次上升就是一拍')),
+    L('The clock flips between 0 and 1 at a steady rate. Every register takes its new value at the same instant, on each tick. At 3 GHz one cycle lasts a third of a billionth of a second.', '時脈以固定的速度在 0 和 1 之間切換。所有暫存器都在同一瞬間、也就是每一拍，收下新的值。3 GHz 的話，一個週期只有十億分之一秒的三分之一。'));
+};
+
+W['fig-tower'] = function (el) {
+  const rows = [
+    [['Apps and websites', '應用程式與網站'], ['what you use', '你在用的東西']],
+    [['Operating system', '作業系統'], ['shares the machine between programs', '把機器分給各個程式用']],
+    [['Programming languages', '程式語言'], ['code people can read, translated by a compiler', '人看得懂的程式碼，由編譯器翻譯']],
+    [['Machine code', '機器碼'], ['instructions stored as numbers', '用數字存起來的指令']],
+    [['The CPU cycle', 'CPU 的循環'], ['fetch, decode, execute, repeat', '擷取、解碼、執行，一直重複']],
+    [['Adders, registers, memory, clock', '加法器、暫存器、記憶體、時脈'], ['circuits that calculate and remember', '會算、會記的電路']],
+    [['Logic gates', '邏輯閘'], ['AND, OR, NOT', 'AND、OR、NOT']],
+    [['Transistors', '電晶體'], ['switches: 0 and 1', '開關：0 和 1']]
+  ];
+  el.innerHTML = '<figure class="figure"><div class="tower">' + rows.map((r, i) => '<div class="tw' + (i === rows.length - 1 ? ' base' : '') + '"><b>' + B(r[0]) + '</b><span>' + B(r[1]) + '</span></div>').join('<i>&uarr;</i>') + '</div><figcaption>' +
+    L('Read it from the bottom. Each layer is built only from the layer beneath it.', '從最下面往上讀。每一層都只用它下面那一層蓋出來。') + '</figcaption></figure>';
+};
+
+/* A complete 16-box computer. Each instruction is stored as one number: operation * 16 + address. */
+const OPS = ['HALT', 'LOAD', 'ADD', 'STORE', 'SUB', 'JUMPZ', 'JUMP'];
+const CPU_PROG = [[1, 14], [2, 13], [3, 14], [1, 13], [4, 15], [3, 13], [5, 8], [6, 0], [0, 0]];
+const CPU_NAMES = { 13: ['n', 'n'], 14: ['total', '總和'], 15: ['one', '一'] };
+function cpuFresh() {
+  const mem = new Array(16).fill(0);
+  CPU_PROG.forEach((p, i) => { mem[i] = p[0] * 16 + p[1]; });
+  mem[13] = 5; mem[14] = 0; mem[15] = 1;
+  return { mem: mem, pc: 0, ir: 0, acc: 0, phase: 0, halted: false, steps: 0, touch: -1, say: null };
+}
+const cpuWhere = a => (CPU_NAMES[a] ? L('box ' + a + ' (' + CPU_NAMES[a][0] + ')', '格子 ' + a + '（' + CPU_NAMES[a][1] + '）') : L('box ' + a, '格子 ' + a));
+
+W.cpu = function (el) {
+  let c = cpuFresh(), run = null;
+  const meaning = (op, a) => [
+    L('stop', '停止'),
+    L('copy the number in ' + cpuWhere(a) + ' into the working register', '把' + cpuWhere(a) + '的數字複製到工作暫存器'),
+    L('add the number in ' + cpuWhere(a) + ' to the working register', '把' + cpuWhere(a) + '的數字加到工作暫存器'),
+    L('copy the working register into ' + cpuWhere(a), '把工作暫存器的數字存進' + cpuWhere(a)),
+    L('subtract the number in ' + cpuWhere(a) + ' from the working register', '把工作暫存器減掉' + cpuWhere(a) + '的數字'),
+    L('if the working register is 0, continue from box ' + a, '如果工作暫存器是 0，就跳到格子 ' + a + ' 繼續'),
+    L('continue from box ' + a, '跳到格子 ' + a + ' 繼續')
+  ][op];
+  const step = () => {
+    if (c.halted) return;
+    c.steps++;
+    if (c.phase === 0) {
+      c.ir = c.mem[c.pc]; c.touch = c.pc;
+      c.say = L('<b>Fetch.</b> The program counter says ' + c.pc + ', so read box ' + c.pc + '. It holds the number ' + c.ir + '.', '<b>擷取。</b>程式計數器是 ' + c.pc + '，所以去讀格子 ' + c.pc + '。裡面的數字是 ' + c.ir + '。');
+      c.phase = 1;
+    } else if (c.phase === 1) {
+      const op = c.ir >> 4, a = c.ir & 15; c.touch = -1;
+      c.say = L('<b>Decode.</b> ' + c.ir + ' means ' + OPS[op] + (op ? ' ' + a : '') + ': ' + meaning(op, a) + '.', '<b>解碼。</b>' + c.ir + ' 的意思是 ' + OPS[op] + (op ? ' ' + a : '') + '：' + meaning(op, a) + '。');
+      c.phase = 2;
+    } else {
+      const op = c.ir >> 4, a = c.ir & 15; let next = c.pc + 1, did;
+      c.touch = (op >= 1 && op <= 4) ? a : -1;
+      if (op === 1) { c.acc = c.mem[a]; did = L('The working register is now ' + c.acc + '.', '工作暫存器現在是 ' + c.acc + '。'); }
+      else if (op === 2) { c.acc += c.mem[a]; did = L('The adder gives ' + c.acc + '.', '加法器算出 ' + c.acc + '。'); }
+      else if (op === 3) { c.mem[a] = c.acc; did = L(cpuWhere(a) + ' now holds ' + c.acc + '.', cpuWhere(a) + '現在是 ' + c.acc + '。'); }
+      else if (op === 4) { c.acc -= c.mem[a]; did = L('The result is ' + c.acc + '.', '結果是 ' + c.acc + '。'); }
+      else if (op === 5) { if (c.acc === 0) { next = a; did = L('It is 0, so jump to box ' + a + '.', '是 0，所以跳到格子 ' + a + '。'); } else did = L('It is ' + c.acc + ', not 0, so carry straight on.', '是 ' + c.acc + '，不是 0，所以照順序往下。'); }
+      else if (op === 6) { next = a; did = L('Jump back to box ' + a + ' and go round again.', '跳回格子 ' + a + '，再繞一圈。'); }
+      else { c.halted = true; did = L('The program has finished. The total is ' + c.mem[14] + ', after ' + c.steps + ' steps round the cycle.', '程式跑完了。總和是 ' + c.mem[14] + '，總共繞了 ' + c.steps + ' 步。'); }
+      if (!c.halted) c.pc = next;
+      c.say = L('<b>Execute.</b> ', '<b>執行。</b>') + did;
+      c.phase = 0;
+    }
+  };
+  const ring = () => {
+    const act = (c.halted || !c.steps) ? -1 : (c.phase + 2) % 3;      // the phase just completed
+    const node = (x, y, i, en, zh) => bx(x - 38, y - 15, 76, 30, act === i ? 'hot' : '') + tx(x, y + 4, L(en, zh), 'middle', act === i ? 'acc' : '');
+    return svgWrap(230, 190,
+      '<circle cx="115" cy="100" r="62" class="fg-l dim"/>' +
+      ah(176, 86, 'd') + ah(86, 157, 'l') + ah(66, 62, 'u') +
+      node(115, 38, 0, 'Fetch', '擷取') + node(170, 132, 1, 'Decode', '解碼') + node(60, 132, 2, 'Execute', '執行'),
+      L('The instruction cycle: fetch, decode, execute, and back to fetch', '指令週期：擷取、解碼、執行，再回到擷取'));
+  };
+  const draw = () => {
+    const op = c.ir >> 4, a = c.ir & 15;
+    let cells = '';
+    for (let i = 0; i < 16; i++) {
+      const v = c.mem[i], isCode = i < CPU_PROG.length;
+      const label = isCode ? OPS[v >> 4] + ((v >> 4) ? ' ' + (v & 15) : '') : (CPU_NAMES[i] ? B(CPU_NAMES[i]) : '');
+      cells += '<div class="memc' + (i === c.pc && !c.halted ? ' pc' : '') + (i === c.touch ? ' touch' : '') + (isCode ? '' : ' data') + '"><small>' + i + '</small><b>' + v + '</b><span>' + label + '</span></div>';
+    }
+    el.innerHTML = '<div class="cpu"><div class="cpu-l">' + ring() +
+      '<div class="regs"><div><small>' + L('Program counter', '程式計數器') + '</small><b>' + c.pc + '</b></div><div><small>' + L('Current instruction', '目前的指令') + '</small><b>' + (c.steps ? c.ir : '-') + '</b><span>' + (c.steps ? OPS[op] + (op ? ' ' + a : '') : '') + '</span></div><div><small>' + L('Working register', '工作暫存器') + '</small><b>' + c.acc + '</b></div></div></div>' +
+      '<div class="cpu-r"><p class="w-h">' + L('Memory: 16 boxes', '記憶體：16 個格子') + '</p><div class="memgrid">' + cells + '</div>' +
+      '<p class="small">' + L('Boxes 0 to 8 hold the program. Boxes 13 to 15 hold its data. The outlined box is where the program counter points.', '格子 0 到 8 放程式，格子 13 到 15 放資料。有外框的那一格，就是程式計數器指著的地方。') + '</p></div></div>' +
+      '<p class="demo-row"><button type="button" class="btn" data-m="step"' + (c.halted ? ' disabled' : '') + '>' + L('Step', '走一步') + '</button><button type="button" class="btn ghost" data-m="run"' + (c.halted ? ' disabled' : '') + '>' + (run ? L('Pause', '暫停') : L('Run', '自動跑')) + '</button><button type="button" class="btn ghost" data-m="reset">' + L('Start again', '重來') + '</button>' +
+      '<span class="readout">' + L('total = ', '總和 = ') + '<b>' + c.mem[14] + '</b></span></p>' +
+      '<p class="cpu-say">' + (c.say || L('Press Step. The CPU will fetch the instruction in box 0.', '按「走一步」。CPU 會先去拿格子 0 裡的指令。')) + '</p>';
+  };
+  const stop = () => { if (run) { clearInterval(run); run = null; } };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    const m = b.dataset.m;
+    if (m === 'step') { stop(); step(); }
+    else if (m === 'reset') { stop(); c = cpuFresh(); }
+    else if (m === 'run') { if (run) stop(); else run = setInterval(() => { if (!el.isConnected) { stop(); return; } step(); if (c.halted) stop(); draw(); }, 420); }
+    draw();
+  });
   draw();
 };
 

@@ -1,9 +1,9 @@
 M({
   id: 'fnd', n: 0,
   title: 'Foundations',
-  zh: '基礎：電腦、網路、瀏覽器、伺服器、雲端、密碼學',
-  time: '2 to 3 weeks',
-  blurb: 'What each thing is and what it is for. This is the part a computer-science degree covers and most self-taught developers skip.',
+  zh: '基礎：從一個開關講起，到 CPU、網路、瀏覽器、伺服器、雲端、密碼學',
+  time: '4 to 5 weeks',
+  blurb: 'How a machine made of switches can calculate and remember, then what each thing built on top of it is and what it is for. This is the part a computer-science degree covers and most self-taught developers skip.',
   lessons: [
   {
     id: 'fnd-computer', lv: 1, mins: 12,

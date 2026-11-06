@@ -41,7 +41,7 @@ for (const name of names) {
   try { en = load(enFile, 'M'); zh = load(zhFile, 'MZ'); } catch (e) { console.log('FAIL ' + name + ': cannot run file: ' + e.message); failed = true; continue; }
   if (!zh) { console.log('FAIL ' + name + ': file did not call MZ({...})'); failed = true; continue; }
   if (zh.id !== en.id) P.push('module id is "' + zh.id + '", expected "' + en.id + '"');
-  for (const k of ['title', 'time', 'blurb']) if (!hasCJK(zh[k])) P.push('module ' + k + ' missing or not Chinese');
+  for (const k of ['title', 'time', 'blurb']) if (en[k] && !hasCJK(zh[k])) P.push('module ' + k + ' missing or not Chinese');
   const zl = zh.lessons || [];
   if (zl.length !== en.lessons.length) P.push('has ' + zl.length + ' lessons, expected ' + en.lessons.length);
   en.lessons.forEach((l, i) => {
@@ -95,7 +95,7 @@ for (const name of names) {
     if (/undefined/.test(text)) P.push(w + 'contains the text "undefined"');
   });
   const modText = [zh.title, zh.time, zh.blurb].join(' ');
-  if (simpRe.test(modText)) P.push('module title/time/blurb contains Simplified characters');
+  if (simpRe.test(modText.replace(/undefined/g, ''))) P.push('module title/time/blurb contains Simplified characters');
   simpRe.lastIndex = 0;
   if (P.length) { failed = true; console.log('FAIL ' + name + ' (' + P.length + ' problems)\n  - ' + P.join('\n  - ')); }
   else console.log('OK ' + name + ' (' + en.lessons.length + ' lessons)');
