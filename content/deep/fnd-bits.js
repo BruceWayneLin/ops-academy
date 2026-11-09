@@ -174,7 +174,7 @@ new TextEncoder().encode("猜高低").length // 9（UTF-8 位元組）
 <ul>
 <li><b>MySQL 的 utf8 不是真的 UTF-8</b>：舊的 <code>utf8</code>（現在叫 utf8mb3）每個字最多只存 3 個位元組，表情符號存進去會報錯。請一律用 <code>utf8mb4</code>。</li>
 <li><b>Excel 打開 CSV 變亂碼</b>：很多版本的 Excel 遇到沒有標記的 CSV，會用系統預設的舊編碼（繁中 Windows 上是 Big5 系列）去讀 UTF-8 的位元組。匯出給 Excel 的 CSV，開頭加上三個位元組 <code>EF BB BF</code>（BOM），它就知道是 UTF-8。</li>
-<li><b>照位元組截斷，會把字切成兩半</b>：Go 的 <code>s[:255]</code>、資料庫的位元組上限，都可能剛好切在一個中文字的三個位元組中間，剩下的半個字解不回來，顯示成 <code>�</code>（U+FFFD，替代字元）。截斷要以碼位或字為單位。</li>
+<li><b>照位元組截斷，會把字切成兩半</b>：Go 的 <code>s[:255]</code>、資料庫的位元組上限，都可能剛好切在一個中文字的三個位元組中間，剩下的半個字解不回來，顯示成 <code>&#xFFFD;</code>（U+FFFD，替代字元）。截斷要以碼位或字為單位。</li>
 </ul>
 
 <h3><span class="badge lv2">進階</span>四、位元組順序：大端與小端</h3>
