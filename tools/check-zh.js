@@ -4,7 +4,7 @@
 //        node tools/check-zh.js m3-data    (one or more by name)
 const fs = require('fs'), vm = require('vm'), path = require('path');
 const root = path.join(__dirname, '..');
-const all = fs.readdirSync(path.join(root, 'content')).filter(f => /^m\d.*\.js$/.test(f)).map(f => f.replace(/\.js$/, '')).sort();
+const all = fs.readdirSync(path.join(root, 'content')).filter(f => /^[a-z]+\d.*\.js$/.test(f)).map(f => f.replace(/\.js$/, '')).sort();
 const names = process.argv.slice(2).length ? process.argv.slice(2).map(n => n.replace(/\.js$/, '')) : all;
 
 // Characters that exist only in Simplified Chinese. Their presence means the text is not Traditional.
@@ -92,7 +92,7 @@ for (const name of names) {
       const at = text.search(simpRe);
       P.push(w + 'Simplified characters found: ' + uniq + '  e.g. "…' + text.slice(Math.max(0, at - 8), at + 8).replace(/\s+/g, ' ') + '…"');
     }
-    if (/undefined/.test(text)) P.push(w + 'contains the text "undefined"');
+    if (/>undefined<|^undefined$|\bundefinedundefined\b/.test(text)) P.push(w + 'contains a stray "undefined" (a missing value)');
   });
   const modText = [zh.title, zh.time, zh.blurb].join(' ');
   if (simpRe.test(modText.replace(/undefined/g, ''))) P.push('module title/time/blurb contains Simplified characters');

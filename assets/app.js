@@ -27,6 +27,15 @@ const LV = {
   4: ['Expert', '專家', 'You can explain why, handle the unusual case, and teach others.', '你說得出為什麼、處理得了少見的狀況，還能教別人。']
 };
 
+/* ---------- study tracks (each shown behind its own tab) ---------- */
+const TRACKS = [
+  { id: 'ops', t: ['DevOps & Security', 'DevOps 與資安'], short: 'Ops' },
+  { id: 'ts', t: ['TypeScript', 'TypeScript'], short: 'TS' },
+  { id: 'cocos', t: ['Cocos Creator', 'Cocos Creator'], short: 'Cocos' },
+  { id: 'mine', t: ['My courses', '我的課程'], short: 'Mine' }   // only where content/library.local.js is loaded
+];
+const TORDER = id => { const i = TRACKS.findIndex(t => t.id === id); return i < 0 ? 99 : i; };
+
 /* ---------- course data ---------- */
 /* A module may arrive in several parts (several M() calls with the same id). Their lessons are joined in load order. */
 const MODS = [];
@@ -36,14 +45,22 @@ const MODS = [];
     const t = seen[m.id];
     if (!t) { seen[m.id] = Object.assign({}, m, { lessons: (m.lessons || []).slice() }); MODS.push(seen[m.id]); return; }
     t.lessons = t.lessons.concat(m.lessons || []);
-    ['n', 'title', 'zh', 'time', 'blurb'].forEach(k => { if (t[k] == null && m[k] != null) t[k] = m[k]; });
+    ['n', 'track', 'title', 'zh', 'time', 'blurb'].forEach(k => { if (t[k] == null && m[k] != null) t[k] = m[k]; });
   });
-  MODS.sort((a, b) => (a.n || 0) - (b.n || 0));
+  MODS.forEach(m => { if (!m.track) m.track = 'ops'; });
+  MODS.sort((a, b) => (TORDER(a.track) - TORDER(b.track)) || ((a.n || 0) - (b.n || 0)));
 })();
 const ALL = [];
 MODS.forEach(m => m.lessons.forEach(l => { l.mod = m; l.num = m.n + '.' + (m.lessons.indexOf(l) + 1); l.i = ALL.length; ALL.push(l); }));
 const BY = {};
 ALL.forEach(l => { BY[l.id] = l; });
+const TRK = {};   // lessons of each track, in order
+ALL.forEach(l => { const t = l.mod.track; (TRK[t] || (TRK[t] = [])).push(l); l.ti = TRK[t].length - 1; });
+const LIVE = TRACKS.filter(t => TRK[t.id] && TRK[t.id].length);
+if (!S.track || !TRK[S.track]) S.track = LIVE.length ? LIVE[0].id : 'ops';
+const TL = () => TRK[S.track] || [];
+const trackOf = id => TRACKS.find(t => t.id === id) || { id: id, t: [id, id], short: id };
+const numOf = l => (l.mod.track === S.track ? '' : trackOf(l.mod.track).short + ' ') + l.num;
 const ZMOD = {}, ZLES = {};
 (window.COURSE_ZH || []).forEach(m => {
   const t = ZMOD[m.id] || (ZMOD[m.id] = {});
@@ -51,6 +68,7 @@ const ZMOD = {}, ZLES = {};
   (m.lessons || []).forEach(l => { ZLES[l.id] = l; });
 });
 const PRIV = window.PRIVATE_NOTES || {};
+const DEEPS = window.DEEPS || {};   // long illustrated deep dives, in Chinese, keyed by lesson id
 const EXTRA = Array.isArray(window.EXTRA_LINKS) ? window.EXTRA_LINKS : [];   // other study material declared by the entry page
 
 const zm = m => (zhOn() && ZMOD[m.id]) || null;
@@ -79,28 +97,39 @@ let quizCtx = null;
 
 /* ---------- chrome ---------- */
 function renderTop() {
-  const d = ALL.filter(l => S.done[l.id]).length;
-  $('#prog-n').textContent = d + ' / ' + ALL.length;
-  $('#prog-bar').style.width = (ALL.length ? d / ALL.length * 100 : 0) + '%';
+  const tl = TL(), d = tl.filter(l => S.done[l.id]).length;
+  $('#prog-n').textContent = d + ' / ' + tl.length;
+  $('#prog-bar').style.width = (tl.length ? d / tl.length * 100 : 0) + '%';
   $('#q').placeholder = L('Search lessons', '搜尋課程');
   $('#lang').textContent = zhOn() ? 'EN' : '中文';
   $('#lang').title = zhOn() ? 'Switch to English' : '切換成中文';
   document.documentElement.lang = zhOn() ? 'zh-Hant' : 'en';
+  const br = $('.brand');
+  if (br) br.innerHTML = L('Skills<b>Hub</b>', '職能<b>進修站</b>');
+  if (location.protocol !== 'file:' || !document.title || /Skills Hub|職能進修站/.test(document.title)) document.title = L('Skills Hub', '職能進修站');
+}
+
+function tabsHTML(cls) {
+  if (LIVE.length < 2) return '';
+  return '<nav class="tracks ' + cls + '" aria-label="' + L('Study tracks', '學習主題') + '">' + LIVE.map(t => {
+    const d = TRK[t.id].filter(l => S.done[l.id]).length;
+    return '<a href="#' + t.id + '"' + (t.id === S.track ? ' class="on" aria-current="page"' : '') + '>' + esc(B(t.t)) + '<small>' + d + ' / ' + TRK[t.id].length + '</small></a>';
+  }).join('') + '</nav>';
 }
 
 function renderSide() {
-  let o = '<a class="side-home' + (active === 'home' ? ' on' : '') + '" href="#home">' + L('Roadmap', '課程地圖') + '</a>';
-  MODS.forEach(m => {
+  let o = tabsHTML('side-tracks') + '<a class="side-home' + (active === 'home' ? ' on' : '') + '" href="#home">' + L('Roadmap', '課程地圖') + '</a>';
+  MODS.filter(m => m.track === S.track).forEach(m => {
     const d = m.lessons.filter(l => S.done[l.id]).length;
     const here = BY[active] && BY[active].mod === m;
     const isOpen = openMods[m.id] !== undefined ? openMods[m.id] : here;
     o += '<details class="mod" data-mod="' + m.id + '"' + (isOpen ? ' open' : '') + '><summary><span class="mn">' + m.n + '</span><span class="mt">' + esc(mTitle(m)) + '</span><span class="mc">' + d + '/' + m.lessons.length + '</span></summary><ol>';
     m.lessons.forEach(l => {
-      o += '<li><a href="#' + l.id + '" class="' + (l.id === active ? 'on ' : '') + (S.done[l.id] ? 'done' : '') + '"><span class="tick"></span><span>' + esc(lTitle(l)) + '</span></a></li>';
+      o += '<li><a href="#' + l.id + '" class="' + (l.id === active ? 'on ' : '') + (S.done[l.id] ? 'done' : '') + '"><span class="tick"></span><span>' + esc(lTitle(l)) + (DEEPS[l.id] ? ' <em class="deeptag">' + L('illustrated', '圖解') + '</em>' : '') + '</span></a></li>';
     });
     o += '</ol></details>';
   });
-  o += '<div class="side-links"><a href="#review">' + L('Review quiz', '複習測驗') + '</a><a href="#tools">' + L('Calculators', '計算機') + '</a><a href="#glossary">' + L('Glossary 中英對照', '詞彙表 中英對照') + '</a></div>';
+  o += '<div class="side-links"><a href="#review">' + L('Review quiz', '複習測驗') + '</a>' + (S.track === 'ops' ? '<a href="#tools">' + L('Calculators', '計算機') + '</a>' : '') + '<a href="#glossary">' + L('Glossary 中英對照', '詞彙表 中英對照') + '</a></div>';
   if (EXTRA.length) o += '<div class="side-links"><p class="w-h">' + L('Other material', '其他教材') + '</p>' + EXTRA.map(x => '<a href="' + esc(x.href) + '">' + esc(B(x.title)) + '</a>').join('') + '</div>';
   const side = $('#side');
   const y = side.scrollTop;
@@ -138,36 +167,90 @@ function showAnswer(qEl, q, ai) {
 }
 
 /* ---------- views ---------- */
+const HERO = {
+  ops: [['Self-study path · no degree needed', '自學路線 · 不需要學歷'],
+    ['From &ldquo;what is a browser?&rdquo; to running ten million users, and defending them.', '從「瀏覽器是什麼？」到撐起一千萬使用者，並且守得住。'],
+    ['Every topic starts with what the thing is and what it is for, then goes down to the level a senior engineer works at. The practice tasks use your own servers, so finishing the course also leaves you with a portfolio to show an employer.',
+     '每個主題都從「這是什麼、做什麼用」開始，一路講到資深工程師實際在用的深度。練習題用你自己的伺服器來做，所以整門課走完，你手上也會有一份可以給雇主看的作品集。']],
+  ts: [['TypeScript track', 'TypeScript 主題'],
+    ['The language you already write every day, learned properly from zero.', '你每天都在寫的語言，從零好好學一次。'],
+    ['Values and types first, then classes and shapes, then the code you meet every day: async, modules and patterns. Every lesson has small snippets to paste into the TypeScript Playground, so there is nothing to install.',
+     '先學值與型別，再學 class 與「形狀」，最後是每天都會碰到的程式：非同步、模組、設計模式。每一課都有小段程式碼可以貼進 TypeScript Playground，什麼都不用安裝。']],
+  mine: [['Your own courses, from this computer', '你自己做過的課程，從這台電腦收進來'],
+    ['Everything you have already built to learn from, in one place.', '你已經做好的教材，全部放在同一個地方。'],
+    ['Courses you already made, collected from this computer by node tools/build-library.js. The originals stay where they are; run that command again after you change them.',
+     '你已經做好的課程，由 node tools/build-library.js 從這台電腦收進來。原始檔案都還在原來的地方；改了之後再跑一次這個指令就好。']],
+  cocos: [['Cocos Creator track', 'Cocos Creator 主題'],
+    ['How a game engine works, and how to build a real game with it.', '遊戲引擎怎麼運作，以及怎麼用它做出一款真正的遊戲。'],
+    ['Starts from the game loop and the node tree, compares each idea with Vue, and ends with a complete Higher or Lower game built from an empty project.',
+     '從遊戲迴圈和節點樹講起，每個概念都拿 Vue 來對照，最後從一個空專案做出一款完整的「比大小」小遊戲。']]
+};
+const HOWTO = {
+  ts: ['<li><b>One lesson per sitting.</b> Read it, paste the snippets into the TypeScript Playground, change them until they break, then answer the questions.</li>' +
+    '<li><b>Order:</b> modules 1, 2 and 3 in sequence. If you write Cocos code, read this track before or alongside the Cocos track.</li>' +
+    '<li><b>Use it at work the same day.</b> Each lesson ends with a task on your own code. Doing it is what makes the syntax stick.</li>' +
+    '<li><b>Use Review every weekend.</b> It draws questions from the lessons you finished in this track.</li>',
+    '<li><b>一次一課。</b>讀完，把程式碼貼進 TypeScript Playground，改到它壞掉為止，再回答問題。</li>' +
+    '<li><b>順序：</b>模組 1、2、3 照順序。如果你在寫 Cocos，先讀這個主題，或跟 Cocos 主題一起讀。</li>' +
+    '<li><b>當天就用在工作上。</b>每一課最後都有一個用你自己程式碼的練習，做了語法才會記得住。</li>' +
+    '<li><b>每個週末做一次複習測驗。</b>題目從你在這個主題完成的課裡抽。</li>'],
+  cocos: ['<li><b>Keep a Cocos Creator 3.8 project open</b> while you read, so you can try each idea in the editor and in the browser preview.</li>' +
+    '<li><b>Order:</b> modules 1 to 3 in sequence. The TypeScript track teaches the language itself.</li>' +
+    '<li><b>Build the capstone.</b> The last lesson builds a complete game step by step. That game is the proof that you can do it.</li>' +
+    '<li><b>Use Review every weekend.</b> It draws questions from the lessons you finished in this track.</li>',
+    '<li><b>讀的時候開著一個 Cocos Creator 3.8 專案</b>，每個概念都可以在編輯器和瀏覽器預覽裡試。</li>' +
+    '<li><b>順序：</b>模組 1 到 3 照順序。語言本身在 TypeScript 主題裡教。</li>' +
+    '<li><b>一定要做畢業作品。</b>最後一課一步一步做出一款完整的遊戲，那就是你做得到的證明。</li>' +
+    '<li><b>每個週末做一次複習測驗。</b>題目從你在這個主題完成的課裡抽。</li>']
+};
+const RES = {
+  ts: [['https://www.typescriptlang.org/play', 'TypeScript Playground', ': write and run TypeScript in the browser. Every snippet in this track runs here.', '：在瀏覽器裡寫、跑 TypeScript。這個主題的每段程式碼都在這裡跑。'],
+    ['https://www.typescriptlang.org/docs/handbook/intro.html', 'The TypeScript Handbook', ': the official guide, for when you want the full rules.', '：官方指南，想看完整規則時查這裡。'],
+    ['https://vuejs.org/guide/typescript/overview.html', 'Vue: Using Vue with TypeScript', ': how the ideas here apply to your Vue code.', '：這裡學的東西怎麼用在你的 Vue 程式碼上。'],
+    ['https://basarat.gitbook.io/typescript/', 'TypeScript Deep Dive', ': a free book that explains the reasons behind the rules.', '：一本免費的書，講規則背後的原因。'],
+    ['https://github.com/type-challenges/type-challenges', 'Type Challenges', ': exercises for after module 2, from easy to very hard.', '：讀完模組 2 之後的練習題，從簡單到非常難。']],
+  cocos: [['https://docs.cocos.com/creator/3.8/manual/en/', 'Cocos Creator 3.8 manual', ': the official manual. Look up any component here.', '：官方手冊，任何元件都可以在這裡查。'],
+    ['https://docs.cocos.com/creator/3.8/api/en/', 'Cocos Creator 3.8 API reference', ': every class, method and event, with types.', '：每一個類別、方法、事件和它們的型別。'],
+    ['https://github.com/cocos/cocos-test-projects', 'cocos-test-projects', ': official example scenes for almost every feature.', '：官方範例場景，幾乎每個功能都有。'],
+    ['https://forum.cocos.org/', 'Cocos forum', ': the main community, mostly in Chinese.', '：主要的社群論壇，大部分是中文。']]
+};
+
 function viewHome() {
-  const done = ALL.filter(l => S.done[l.id]).length;
-  const next = (S.last && BY[S.last] && !S.done[S.last]) ? BY[S.last] : (ALL.find(l => !S.done[l.id]) || ALL[0]);
-  const verb = (done || next !== ALL[0]) ? L('Continue', '繼續') : L('Start', '開始');
-  let o = '<div class="home"><section class="hero"><p class="eyebrow">' + L('Self-study path · no degree needed', '自學路線 · 不需要學歷') + '</p>' +
-    '<h1>' + L('From &ldquo;what is a browser?&rdquo; to running ten million users, and defending them.', '從「瀏覽器是什麼？」到撐起一千萬使用者，並且守得住。') + '</h1>' +
-    '<p class="lead">' + L(
-      'Every topic starts with what the thing is and what it is for, then goes down to the level a senior engineer works at. The practice tasks use your own servers, so finishing the course also leaves you with a portfolio to show an employer.',
-      '每個主題都從「這是什麼、做什麼用」開始，一路講到資深工程師實際在用的深度。練習題用你自己的伺服器來做，所以整門課走完，你手上也會有一份可以給雇主看的作品集。') + '</p>' +
+  const tl = TL(), hero = HERO[S.track] || HERO.ops;
+  const done = tl.filter(l => S.done[l.id]).length;
+  const next = (S.last && BY[S.last] && BY[S.last].mod.track === S.track && !S.done[S.last]) ? BY[S.last] : (tl.find(l => !S.done[l.id]) || tl[0]);
+  const verb = (done || next !== tl[0]) ? L('Continue', '繼續') : L('Start', '開始');
+  let o = '<div class="home">' + tabsHTML('home-tracks') + '<section class="hero"><p class="eyebrow">' + B(hero[0]) + '</p>' +
+    '<h1>' + B(hero[1]) + '</h1><p class="lead">' + B(hero[2]) + '</p>' +
     '<div class="hero-row"><a class="btn" href="#' + next.id + '">' + verb + L(': ', '：') + next.num + ' ' + esc(lTitle(next)) + ' &rarr;</a>' +
-    '<span class="small">' + L(done + ' of ' + ALL.length + ' lessons done', '已完成 ' + done + '／' + ALL.length + ' 課') + '</span></div></section>';
+    '<span class="small">' + L(done + ' of ' + tl.length + ' lessons done', '已完成 ' + done + '／' + tl.length + ' 課') + '</span></div></section>';
 
   o += '<section class="levels">';
   [1, 2, 3, 4].forEach(lv => {
-    const ls = ALL.filter(l => (l.lv || 2) === lv);
+    const ls = tl.filter(l => (l.lv || 2) === lv);
     const d = ls.filter(l => S.done[l.id]).length;
     o += '<div class="lvl lv' + lv + '"><b>' + L(LV[lv][0], LV[lv][1]) + '</b><span>' + L(LV[lv][1], LV[lv][0]) + '</span><div class="bar"><i style="width:' + (ls.length ? d / ls.length * 100 : 0) + '%"></i></div><small>' + d + ' / ' + ls.length + L(' lessons', ' 課') + '</small><p>' + L(LV[lv][2], LV[lv][3]) + '</p></div>';
   });
   o += '</section>';
 
   o += '<h2>' + L('The path', '學習路線') + '</h2><div class="cards">';
-  MODS.forEach(m => {
+  MODS.filter(m => m.track === S.track).forEach(m => {
     const d = m.lessons.filter(l => S.done[l.id]).length;
     const go = m.lessons.find(l => !S.done[l.id]) || m.lessons[0];
-    o += '<a class="card" href="#' + go.id + '"><div class="card-top"><span>' + L('Module ', '模組 ') + m.n + '</span><span>' + esc(mTime(m)) + '</span></div><h3>' + esc(mTitle(m)) + '</h3><p class="zh">' + esc(zhOn() ? m.title : m.zh) + '</p><p>' + esc(mBlurb(m)) + '</p><div class="bar"><i style="width:' + (d / m.lessons.length * 100) + '%"></i></div><div class="card-top" style="margin-top:6px"><span>' + d + ' / ' + m.lessons.length + L(' lessons', ' 課') + '</span></div></a>';
+    o += '<a class="card" href="#' + go.id + '"><div class="card-top"><span>' + L('Module ', '模組 ') + m.n + '</span><span>' + esc(mTime(m)) + '</span></div><h3>' + esc(mTitle(m)) + '</h3>' + ((zhOn() ? m.title : m.zh) && (zhOn() ? m.title : m.zh) !== mTitle(m) ? '<p class="zh">' + esc(zhOn() ? m.title : m.zh) + '</p>' : '') + '<p>' + esc(mBlurb(m)) + '</p><div class="bar"><i style="width:' + (d / m.lessons.length * 100) + '%"></i></div><div class="card-top" style="margin-top:6px"><span>' + d + ' / ' + m.lessons.length + L(' lessons', ' 課') + '</span></div></a>';
   });
   o += '</div>';
 
-  if (EXTRA.length) {
+  if (EXTRA.length && S.track !== 'ops') {
     o += '<h2>' + L('Other study material', '其他教材') + '</h2><div class="cards">' + EXTRA.map(x => '<a class="card" href="' + esc(x.href) + '"><div class="card-top"><span>' + esc(B(x.kind || ['Handbook', '手冊'])) + '</span><span>' + esc(B(x.lang || ['', ''])) + '</span></div><h3>' + esc(B(x.title)) + '</h3><p>' + esc(B(x.blurb || ['', ''])) + '</p></a>').join('') + '</div>';
+  }
+  if (S.track !== 'ops') {
+    if (HOWTO[S.track]) o += '<h2>' + L('How to use this', '怎麼使用') + '</h2><div class="how"><ul>' + B(HOWTO[S.track]) + '</ul></div>';
+    o += '<h2>' + L('Study on another device', '換裝置繼續學') + '</h2><div class="how sync" id="sync-box">' + syncHTML() + '</div>';
+    if (RES[S.track]) o += '<h2>' + L('Free resources worth bookmarking', '值得加入書籤的免費資源') + '</h2><ul class="res">' + RES[S.track].map(r => '<li><a href="' + r[0] + '" target="_blank" rel="noopener">' + r[1] + '</a>' + L(r[2], r[3]) + '</li>').join('') + '</ul></div>';
+    if (!RES[S.track]) o += '</div>';
+    main.innerHTML = o;
+    return;
   }
   o += '<h2>' + L('How to use this', '怎麼使用') + '</h2><div class="how"><ul>' + L(
     '<li><b>One lesson per sitting.</b> Read it (10 to 15 minutes), run the &ldquo;Try it&rdquo; commands, answer the questions. Five evenings a week finishes the course in about six months.</li>' +
@@ -201,18 +284,26 @@ function viewHome() {
 
 function viewLesson(l) {
   S.last = l.id; save();
-  const prev = ALL[l.i - 1], next = ALL[l.i + 1];
+  const tl = TRK[l.mod.track], prev = tl[l.ti - 1], next = tl[l.ti + 1];
   const lvn = l.lv || 2;
   const z = zl(l);
   const tries = l.try || [];
   let o = '<article class="lesson">';
-  o += '<p class="crumb"><a href="#home">' + L('Roadmap', '課程地圖') + '</a> / ' + L('Module ', '模組 ') + l.mod.n + ' · ' + esc(mTitle(l.mod)) + '</p>';
+  o += '<p class="crumb"><a href="#home">' + esc(B(trackOf(l.mod.track).t)) + '</a> / ' + L('Module ', '模組 ') + l.mod.n + ' · ' + esc(mTitle(l.mod)) + '</p>';
   o += '<h1><span class="num">' + l.num + '</span>' + esc(lTitle(l)) + '</h1>';
   if (z) o += '<p class="entitle">' + esc(l.title) + '</p>';
   o += '<p class="meta"><span class="badge lv' + lvn + '">' + L(LV[lvn][0] + ' ' + LV[lvn][1], LV[lvn][1] + ' ' + LV[lvn][0]) + '</span><span>' +
-    L((l.mins || 10) + ' min read' + (tries.length ? ' + hands-on' : ''), '閱讀約 ' + (l.mins || 10) + ' 分鐘' + (tries.length ? '＋動手做' : '')) + '</span></p>';
-  o += '<p class="zh">' + esc(l.zh) + '</p>';
-  o += '<div class="body">' + ((z && z.body) || l.body) + '</div>';
+    L((l.mins || 10) + ' min read' + (tries.length ? ' + hands-on' : ''), '閱讀約 ' + (l.mins || 10) + ' 分鐘' + (tries.length ? '＋動手做' : '')) + '</span>' + (DEEPS[l.id] ? '<a class="deeplink" href="javascript:void(0)" data-act="todeep">' + L('Jump to the illustrated deep dive', '跳到深入圖解') + ' &darr;</a>' : '') + '</p>';
+  if (l.zh) o += '<p class="zh">' + esc(l.zh) + '</p>';
+  if (l.md != null || l.code != null) {
+    if (l.src) o += '<p class="small">' + L('Source: ', '原始檔：') + '<code>' + esc(l.src.replace(/^[/]Users[/][^/]+/, '~')) + '</code></p>';
+    if (l.open) o += '<p><a class="btn" href="' + esc(l.open) + '" target="_blank" rel="noopener">' + L('Open it', '打開') + ' &rarr;</a></p>';
+    if (l.md) o += '<div class="body md-body" data-md="1"></div>';
+    if (l.code != null) o += '<pre class="libcode"><code>' + esc(l.code) + '</code></pre>';
+  } else o += '<div class="body">' + ((z && z.body) || l.body) + '</div>';
+  if (DEEPS[l.id]) {
+    o += '<section class="deep" id="deep"><h2>' + L('Deep dive, illustrated', '深入圖解') + '</h2>' + (zhOn() ? '' : '<p class="small">This deep dive is written in Traditional Chinese.</p>') + '<div class="body">' + DEEPS[l.id] + '</div></section>';
+  }
   if (tries.length) {
     const note = (z && z.tryNote) || l.tryNote;
     o += '<section><h2>' + L('Try it', '動手試試') + '</h2>' + (note ? '<p class="small">' + note + '</p>' : '');
@@ -223,7 +314,7 @@ function viewLesson(l) {
     o += '</section>';
   }
   const own = (z && z.own) || l.own;
-  if (own) o += '<section><h2>' + L('On your own stack', '用你自己的系統練習') + '</h2><div class="own"><p>' + own + '</p></div></section>';
+  if (own) o += '<section><h2>' + (l.mod.track === 'ops' ? L('On your own stack', '用你自己的系統練習') : L('Use it on your own work', '用在你自己的工作上')) + '</h2><div class="own"><p>' + own + '</p></div></section>';
   if (PRIV[l.id]) {
     o += '<section><h2>' + L('Your private notes', '你的私人筆記') + '</h2><div class="own priv"><p>' + (PRIV[l.id][LANG] || PRIV[l.id].en) + '</p></div></section>';
   }
@@ -243,11 +334,33 @@ function viewLesson(l) {
   const saved = S.quiz[l.id] || {};
   $$('.q', main).forEach(qEl => { const qi = +qEl.dataset.q; if (saved[qi] != null) showAnswer(qEl, currentQuiz[qi], saved[qi]); });
   mountWidgets(main);
+  const mdEl = $('[data-md]', main);
+  if (mdEl) renderMd(mdEl, l.md);
+}
+
+/* Markdown for the owner's own courses. marked is loaded from cdnjs the first time it is needed. */
+let markedP = null;
+function renderMd(el, md) {
+  const plain = () => { el.innerHTML = '<pre class="libcode"><code>' + esc(md) + '</code></pre>'; };
+  if (!markedP) markedP = new Promise((res, rej) => {
+    if (window.marked) return res(window.marked);
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js';
+    sc.onload = () => (window.marked ? res(window.marked) : rej());
+    sc.onerror = rej;
+    document.head.appendChild(sc);
+  });
+  el.innerHTML = '<p class="small">' + L('Loading', '載入中') + '</p>';
+  markedP.then(mk => {
+    if (!el.isConnected) return;
+    el.innerHTML = mk.parse(md);
+    el.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
+  }, () => { markedP = null; plain(); });
 }
 
 function viewReview() {
-  const pool = ALL.filter(l => S.done[l.id]);
-  const src = pool.length ? pool : ALL;
+  const tl = TL(), pool = tl.filter(l => S.done[l.id]);
+  const src = pool.length ? pool : tl;
   const qs = [];
   src.forEach(l => lQuiz(l).forEach(q => { q.from = l; qs.push(q); }));
   currentQuiz = shuffle(qs).slice(0, 8);
@@ -255,7 +368,7 @@ function viewReview() {
   main.innerHTML = '<article class="lesson"><h1>' + L('Review quiz', '複習測驗') + '</h1><p class="lead">' +
     (pool.length
       ? L('Eight random questions from the ' + pool.length + ' lessons you have completed.', '從你完成的 ' + pool.length + ' 課裡隨機抽八題。')
-      : L('You have not completed a lesson yet, so these come from the whole course.', '你還沒完成任何一課，所以先從整門課抽題。')) +
+      : L('You have not completed a lesson in this track yet, so these come from all of it.', '這個主題你還沒完成任何一課，所以先從整個主題抽題。')) +
     '</p><section class="quiz">' + quizHTML(currentQuiz) + '<p class="meter" id="rv-score"></p><button type="button" class="btn ghost" data-act="newreview">' + L('New set', '換一組') + '</button></section></article>';
 }
 
@@ -268,7 +381,7 @@ function viewGlossary() {
     '<input class="w-in gl-in" id="gl-q" type="search" placeholder="' + L('Filter terms', '篩選詞彙') + '"><table class="tbl"><thead><tr><th>English</th><th>繁體中文</th><th>' + L('Taught in', '出自') + '</th></tr></thead><tbody id="gl-b"></tbody></table></article>';
   const draw = v => {
     $('#gl-b').innerHTML = rows.filter(r => !v || r.en.toLowerCase().includes(v) || r.zh.includes(v))
-      .map(r => '<tr><td><b>' + esc(r.en) + '</b></td><td>' + esc(r.zh) + '</td><td><a href="#' + r.l.id + '">' + r.l.num + ' ' + esc(lTitle(r.l)) + '</a></td></tr>').join('');
+      .map(r => '<tr><td><b>' + esc(r.en) + '</b></td><td>' + esc(r.zh) + '</td><td><a href="#' + r.l.id + '">' + numOf(r.l) + ' ' + esc(lTitle(r.l)) + '</a></td></tr>').join('');
   };
   draw('');
   $('#gl-q').addEventListener('input', e => draw(e.target.value.trim().toLowerCase()));
@@ -539,7 +652,7 @@ W.ready = function (el) {
         o += '<label class="check"><input type="checkbox" data-r="' + it[0] + '"' + (S.ready[it[0]] ? ' checked' : '') + '><span>' + B(it[1]) + '<small>' + B(it[2]) + '</small></span></label>';
       });
     });
-    const less = ALL.filter(l => (l.lv || 2) <= 3);
+    const less = (TRK.ops || []).filter(l => (l.lv || 2) <= 3);
     const ld = less.filter(l => S.done[l.id]).length;
     o += '<p class="meter">' + L(
       '<b>' + got + ' of ' + total + '</b> items done · <b>' + ld + ' of ' + less.length + '</b> lessons up to Professional level completed.',
@@ -864,6 +977,176 @@ W.cpu = function (el) {
   draw();
 };
 
+/* ---------- demos for the TypeScript and Cocos tracks ---------- */
+W.asyncorder = function (el) {
+  const CODE = ["console.log('A');", "setTimeout(() => console.log('B'), 0);", "Promise.resolve().then(() => console.log('C'));", "console.log('D');"];
+  const ST = [
+    { line: -1, run: ['nothing yet', '還沒開始'], micro: [], task: [], out: [], say: ['Press Step to run the first line.', '按「走一步」執行第一行。'] },
+    { line: 0, run: ['main script, line 1', '主程式，第 1 行'], micro: [], task: [], out: ['A'], say: ['Plain code runs straight away. A is printed.', '一般的程式碼馬上執行，印出 A。'] },
+    { line: 1, run: ['main script, line 2', '主程式，第 2 行'], micro: [], task: ['B'], out: ['A'], say: ['setTimeout does not run its callback now. It hands it to the timer, and after 0 ms the callback waits in the task queue.', 'setTimeout 不會現在就執行 callback，而是把它交給計時器；0 毫秒後，這個 callback 就到任務佇列裡排隊。'] },
+    { line: 2, run: ['main script, line 3', '主程式，第 3 行'], micro: ['C'], task: ['B'], out: ['A'], say: ['The promise is already resolved, so its then-callback goes into the microtask queue. It does not run yet either.', '這個 promise 已經完成了，所以它的 then callback 進到微任務佇列。它也還不會馬上跑。'] },
+    { line: 3, run: ['main script, line 4', '主程式，第 4 行'], micro: ['C'], task: ['B'], out: ['A', 'D'], say: ['D is plain code, so it prints before anything waiting in a queue.', 'D 是一般的程式碼，所以它比任何在佇列裡排隊的東西都先印出來。'] },
+    { line: -1, run: ['the C callback, from the microtask queue', 'C 的 callback，來自微任務佇列'], micro: [], task: ['B'], out: ['A', 'D', 'C'], say: ['The main script has finished. Before taking the next task, the engine empties the microtask queue, so C prints.', '主程式跑完了。在拿下一個任務之前，引擎會先把微任務佇列清空，所以印出 C。'] },
+    { line: -1, run: ['the B callback, from the task queue', 'B 的 callback，來自任務佇列'], micro: [], task: [], out: ['A', 'D', 'C', 'B'], say: ['The microtask queue is empty, so the next task runs. B prints last, even though its timer was 0 ms.', '微任務佇列空了，才輪到下一個任務。B 最後才印，雖然它的計時器是 0 毫秒。'] },
+    { line: -1, run: ['nothing', '沒有'], micro: [], task: [], out: ['A', 'D', 'C', 'B'], say: ['Finished. The order is A, D, C, B: plain code first, then promise callbacks, then timers.', '跑完了。順序是 A、D、C、B：先跑一般程式碼，再跑 promise 的 callback，最後才是計時器。'] }
+  ];
+  let i = 0;
+  const chips = a => a.length ? a.map(x => '<span class="qchip">' + x + '</span>').join('') : '<span class="small">' + L('empty', '空的') + '</span>';
+  const draw = () => {
+    const s = ST[i];
+    el.innerHTML = '<pre class="asy-code">' + CODE.map((c, k) => '<span class="ln' + (k === s.line ? ' on' : '') + '">' + esc(c) + '</span>').join('') + '</pre>' +
+      '<div class="asy-grid">' +
+      '<div class="asy-box"><small>' + L('Running now', '正在執行') + '</small><b>' + B(s.run) + '</b></div>' +
+      '<div class="asy-box"><small>' + L('Microtask queue (promise callbacks)', '微任務佇列（promise 的 callback）') + '</small><div>' + chips(s.micro) + '</div></div>' +
+      '<div class="asy-box"><small>' + L('Task queue (timers)', '任務佇列（計時器）') + '</small><div>' + chips(s.task) + '</div></div>' +
+      '<div class="asy-box out"><small>' + L('Console output', '主控台輸出') + '</small><b>' + (s.out.join(' ') || '&nbsp;') + '</b></div></div>' +
+      '<p class="demo-row"><button type="button" class="btn" data-m="step"' + (i === ST.length - 1 ? ' disabled' : '') + '>' + L('Step', '走一步') + '</button><button type="button" class="btn ghost" data-m="reset">' + L('Start again', '重來') + '</button><span class="small">' + L('Step ', '第 ') + i + ' / ' + (ST.length - 1) + L('', ' 步') + '</span></p>' +
+      '<p class="cpu-say">' + B(s.say) + '</p>';
+  };
+  el.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; i = b.dataset.m === 'reset' ? 0 : Math.min(ST.length - 1, i + 1); draw(); });
+  draw();
+};
+
+W['cc-loop'] = function (el) {
+  const SPEED = 150, X0 = 20, X1 = 340;
+  let x = X0, frame = 0, playing = false, slow = false, phase = 0, raf = 0, timer = 0, last = 0, dt = 0;
+  const NAMES = [['Input', '輸入'], ['Update', '更新'], ['Render', '繪製']];
+  const SAY = [
+    ['Input: read the touches, clicks and keys that arrived since the last frame.', '輸入：讀取上一格畫面之後進來的觸控、點擊和按鍵。'],
+    ['Update: move every object. x = x + speed × dt.', '更新：移動每一個物件。x = x + 速度 × dt。'],
+    ['Render: draw the whole picture again, with the ball at its new x.', '繪製：把整個畫面重畫一次，球在新的 x 位置。']
+  ];
+  const node = (cx, cy, i) => '<g data-p="' + i + '">' + bx(cx - 40, cy - 15, 80, 30) + tx(cx, cy + 4, B(NAMES[i])) + '</g>';
+  el.innerHTML = '<div class="loopw">' + svgWrap(230, 190,
+      '<circle cx="115" cy="100" r="62" class="fg-l dim"/>' + ah(176, 86, 'd') + ah(86, 157, 'l') + ah(66, 62, 'u') +
+      node(115, 38, 0) + node(170, 132, 1) + node(60, 132, 2) + tx(115, 104, L('one frame', '一格畫面'), 'middle', 'sm'),
+      L('The game loop: input, update, render, every frame', '遊戲迴圈：每一格畫面都做輸入、更新、繪製')) +
+    '<div class="loop-r">' + svgWrap(360, 70, ln(X0, 46, X1, 46, 'dim') + '<circle class="fg-lamp on ball" cx="' + X0 + '" cy="46" r="10"/>' + tx(X0, 66, '0', 'middle', 'sm') + tx(X1, 66, String(X1 - X0), 'middle', 'sm'),
+      L('A ball moving across a strip', '一顆球在跑道上移動')) +
+    '<p class="readout">' + L('frame ', '第 ') + '<b data-r="f">0</b>' + L('', ' 格') + ' · dt <b data-r="dt">-</b> · x <b data-r="x">0</b></p></div></div>' +
+    '<p class="demo-row"><button type="button" class="btn" data-m="play">' + L('Play', '播放') + '</button><label class="small"><input type="checkbox" data-m="slow"> ' + L('Slow motion', '慢動作') + '</label></p>' +
+    '<p class="cpu-say" data-r="say">' + L('Press Play. At normal speed the loop runs about 60 times a second, too fast to see each step. Tick Slow motion to watch one step at a time.', '按「播放」。正常速度下，迴圈每秒大約跑 60 次，快到看不清楚每一步。勾「慢動作」就能一步一步看。') + '</p>';
+  const $r = k => $('[data-r="' + k + '"]', el), ball = $('.ball', el), btn = $('[data-m=play]', el);
+  const show = () => {
+    ball.setAttribute('cx', x.toFixed(1));
+    $r('f').textContent = frame; $r('dt').textContent = dt ? (dt * 1000).toFixed(1) + ' ms' : '-'; $r('x').textContent = (x - X0).toFixed(1);
+    $$('[data-p]', el).forEach(g => { const on = slow && playing && +g.dataset.p === phase; $('rect', g).setAttribute('class', 'fg-b' + (on ? ' hot' : '')); $('text', g).setAttribute('class', 'fg-t' + (on ? ' acc' : '')); });
+  };
+  const move = () => { x += SPEED * dt; if (x > X1) x = X0 + (x - X1); };
+  const stop = () => { playing = false; cancelAnimationFrame(raf); clearInterval(timer); btn.textContent = L('Play', '播放'); show(); };
+  const tick = now => {
+    if (!el.isConnected || !playing || slow) return;
+    dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60; last = now;
+    move(); frame++; show();
+    raf = requestAnimationFrame(tick);
+  };
+  const slowStep = () => {
+    if (!el.isConnected) { stop(); return; }
+    phase = (phase + 1) % 3;
+    if (phase === 0) frame++;
+    if (phase === 1) { const before = x - X0; dt = 0.1; move(); $r('say').textContent = B(SAY[1]) + ' ' + before.toFixed(1) + ' + ' + SPEED + ' × 0.1 = ' + (x - X0).toFixed(1); }
+    else $r('say').textContent = B(SAY[phase]);
+    show();
+  };
+  const start = () => {
+    playing = true; btn.textContent = L('Pause', '暫停');
+    if (slow) { phase = 2; slowStep(); timer = setInterval(slowStep, 900); }
+    else { last = 0; raf = requestAnimationFrame(tick); $r('say').textContent = L('Running at the speed of your screen. dt is the time since the last frame, so the ball moves at the same speed on a fast phone and a slow one.', '照你螢幕的速度在跑。dt 是距離上一格畫面的時間，所以不管手機快或慢，球移動的速度都一樣。'); }
+  };
+  el.addEventListener('click', e => { const b = e.target.closest('[data-m=play]'); if (b) { if (playing) stop(); else start(); } });
+  el.addEventListener('change', e => { if (e.target.matches('[data-m=slow]')) { const was = playing; if (was) stop(); slow = e.target.checked; if (was) start(); } });
+  show();
+};
+
+W['cc-tree'] = function (el) {
+  const CA = [-45, 0], CB = [45, 0];
+  el.innerHTML = '<div class="treew"><ul class="ntree"><li>Canvas<ul><li><b>Table</b> <span class="small" data-r="tp"></span><ul><li>Card A <span class="small" data-r="a"></span></li><li>Card B <span class="small" data-r="b"></span></li></ul></li></ul></li></ul>' +
+    svgWrap(360, 220,
+      ln(0, 110, 360, 110, 'dim') + ln(180, 0, 180, 220, 'dim') + tx(352, 104, 'x', 'end', 'sm') + tx(186, 12, 'y', 'start', 'sm') +
+      '<g class="tbl"><rect x="-85" y="-45" width="170" height="90" rx="8" class="fg-b"/>' + tx(0, -30, 'Table', 'middle', 'sm') +
+      '<rect x="' + (CA[0] - 22) + '" y="-30" width="44" height="60" rx="5" class="fg-b hot"/>' + tx(CA[0], 5, 'A', 'middle', 'acc') +
+      '<rect x="' + (CB[0] - 22) + '" y="-30" width="44" height="60" rx="5" class="fg-b hot"/>' + tx(CB[0], 5, 'B', 'middle', 'acc') + '</g>',
+      L('A Table node carrying two card nodes', 'Table 節點帶著兩張牌的節點')) + '</div>' +
+    '<div class="fields slim"><label>' + L('Table x', 'Table 的 x') + ' <input type="range" min="-100" max="100" value="0" data-k="x"></label><label>' + L('Table y', 'Table 的 y') + ' <input type="range" min="-50" max="50" value="0" data-k="y"></label>' +
+    '<label>' + L('Table angle', 'Table 的角度') + ' <input type="range" min="0" max="90" value="0" data-k="a"></label><label class="chk-row"><input type="checkbox" checked data-k="on"> ' + L('Table is active', 'Table 是 active') + '</label></div>' +
+    '<p class="small">' + L('Move or turn the Table. The cards keep the same local position, because that is measured from the Table. Their world position, on screen, changes with it. Switch the Table off and its children disappear too.', '移動或轉動 Table。牌的本地座標不會變，因為那是從 Table 量起的；它們在畫面上的世界座標則跟著改變。把 Table 關掉，它的子節點也一起消失。') + '</p>';
+  const g = $('.tbl', el);
+  const draw = () => {
+    const v = k => +$('[data-k=' + k + ']', el).value, tx0 = v('x'), ty0 = v('y'), ang = v('a'), on = $('[data-k=on]', el).checked;
+    g.setAttribute('transform', 'translate(' + (180 + tx0) + ',' + (110 - ty0) + ') rotate(' + (-ang) + ')');
+    g.style.display = on ? '' : 'none';
+    const r = ang * Math.PI / 180, wpos = p => [tx0 + p[0] * Math.cos(r) - p[1] * Math.sin(r), ty0 + p[0] * Math.sin(r) + p[1] * Math.cos(r)].map(n => Math.round(n));
+    const f = p => '(' + p[0] + ', ' + p[1] + ')';
+    $('[data-r=tp]', el).textContent = L('position ', '位置 ') + f([tx0, ty0]) + L(', angle ', '，角度 ') + ang + '°';
+    $('[data-r=a]', el).textContent = L('local ', '本地 ') + f(CA) + L(' · world ', ' · 世界 ') + f(wpos(CA));
+    $('[data-r=b]', el).textContent = L('local ', '本地 ') + f(CB) + L(' · world ', ' · 世界 ') + f(wpos(CB));
+  };
+  el.addEventListener('input', draw); el.addEventListener('change', draw);
+  draw();
+};
+
+W['cc-lifecycle'] = function (el) {
+  let exists = false, active = false, loaded = false, started = false, frame = 0;
+  const log = [];
+  const D = {
+    onLoad: ['once, the first time the node is active. Find references here.', '只有一次，在節點第一次變成 active 時。在這裡抓參照。'],
+    onEnable: ['every time the node or component becomes active. Start listening to events here.', '節點或元件每次變成 active 都會呼叫。在這裡開始監聽事件。'],
+    start: ['once, just before the first update. Start timers and read other components here.', '只有一次，在第一次 update 之前。在這裡啟動計時器、讀其他元件。'],
+    update: ['every frame while active. Keep it light.', '只要是 active，每一格畫面都會呼叫。內容要輕。'],
+    lateUpdate: ['every frame, after every update has run. Good for following another object.', '每一格畫面，在所有 update 都跑完之後。適合用來跟著別的物件走。'],
+    onDisable: ['every time the node becomes inactive. Stop listening to events here.', '節點每次變成 inactive 都會呼叫。在這裡停止監聽事件。'],
+    onDestroy: ['once, when the node is destroyed (at the end of the frame). Release everything here.', '只有一次，節點被銷毀時（在這一格畫面結束時）。在這裡把東西都釋放掉。']
+  };
+  const add = (name, extra) => log.push({ name: name, extra: extra || '' });
+  const act = m => {
+    if (m === 'create' && !exists) { exists = true; active = true; loaded = true; started = false; frame = 0; log.length = 0; add('onLoad'); add('onEnable'); }
+    else if (m === 'frame' && exists) {
+      frame++;
+      if (!active) add('', L('frame ' + frame + ': the node is inactive, so nothing is called', '第 ' + frame + ' 格：節點是 inactive，什麼都不會被呼叫'));
+      else { if (!started) { started = true; add('start'); } add('update', 'dt ≈ 0.0167'); add('lateUpdate'); }
+    }
+    else if (m === 'hide' && exists && active) { active = false; add('onDisable'); }
+    else if (m === 'show' && exists && !active) { active = true; add('onEnable'); }
+    else if (m === 'destroy' && exists) { if (active) add('onDisable'); add('onDestroy'); exists = false; active = false; }
+    draw();
+  };
+  const draw = () => {
+    const btn = (m, en, zh, on) => '<button type="button" class="btn' + (m === 'create' ? '' : ' ghost') + '" data-m="' + m + '"' + (on ? '' : ' disabled') + '>' + L(en, zh) + '</button>';
+    const state = !exists ? L('no node', '沒有節點') : active ? L('active', 'active（啟用中）') : L('inactive', 'inactive（停用）');
+    el.innerHTML = '<p class="demo-row">' + btn('create', 'Create node', '建立節點', !exists) + btn('frame', 'Next frame', '下一格畫面', exists) + btn('hide', 'Hide (active = false)', '隱藏（active = false）', exists && active) +
+      btn('show', 'Show', '顯示', exists && !active) + btn('destroy', 'Destroy', '銷毀', exists) + '<span class="readout">' + L('Node: ', '節點：') + '<b>' + state + '</b></span></p>' +
+      '<ol class="lifelog">' + (log.length ? log.slice(-12).map(e => '<li>' + (e.name ? '<code>' + e.name + '</code> ' + B(D[e.name]) + (e.extra ? ' <span class="small">' + e.extra + '</span>' : '') : '<span class="small">' + e.extra + '</span>') + '</li>').join('')
+        : '<li class="small">' + L('Press Create node. The callbacks that run will be listed here, in order.', '按「建立節點」。被呼叫的生命週期函式會依序列在這裡。') + '</li>') + '</ol>';
+  };
+  el.addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b) act(b.dataset.m); });
+  draw();
+};
+
+W['cc-anchor'] = function (el) {
+  const BW = 120, BH = 80, OX = 180, OY = 120;
+  let grid = '';
+  for (let gx = 0; gx <= 360; gx += 30) grid += ln(gx, 0, gx, 240, 'dim');
+  for (let gy = 0; gy <= 240; gy += 30) grid += ln(0, gy, 360, gy, 'dim');
+  el.innerHTML = svgWrap(360, 240, '<g opacity=".35">' + grid + '</g>' + ln(0, OY, 360, OY) + ln(OX, 0, OX, 240) + tx(352, OY - 6, 'x', 'end', 'sm') + tx(OX + 6, 12, 'y', 'start', 'sm') +
+      '<rect class="fg-b hot box" width="' + BW + '" height="' + BH + '" rx="4"/>' + '<g class="cross">' + ln(-9, 0, 9, 0, 'on') + ln(0, -9, 0, 9, 'on') + '<circle r="3.5" class="fg-a on"/></g>',
+      L('A rectangle placed by its anchor point', '用錨點擺放的矩形')) +
+    '<div class="fields slim"><label>' + L('Anchor x', '錨點 x') + ' <b data-r="ax"></b><input type="range" min="0" max="1" step="0.1" value="0.5" data-k="ax"></label><label>' + L('Anchor y', '錨點 y') + ' <b data-r="ay"></b><input type="range" min="0" max="1" step="0.1" value="0.5" data-k="ay"></label>' +
+    '<label>' + L('Position x', '位置 x') + ' <b data-r="px"></b><input type="range" min="-90" max="90" step="10" value="0" data-k="px"></label><label>' + L('Position y', '位置 y') + ' <b data-r="py"></b><input type="range" min="-60" max="60" step="10" value="0" data-k="py"></label></div>' +
+    '<p class="readout" data-r="edges"></p>' +
+    '<p class="small">' + L('The green cross is the node\'s position. The anchor says which point of the rectangle sits on that cross: (0, 0) is the bottom-left corner, (0.5, 0.5) the centre, (1, 1) the top-right. The y axis points up, the opposite of a web page. Size here is 120 × 80.', '綠色十字是節點的位置。錨點決定矩形的哪一點要對準那個十字：(0, 0) 是左下角，(0.5, 0.5) 是正中間，(1, 1) 是右上角。y 軸朝上，跟網頁剛好相反。這裡的大小是 120 × 80。') + '</p>';
+  const draw = () => {
+    const v = k => +$('[data-k=' + k + ']', el).value, ax = v('ax'), ay = v('ay'), px = v('px'), py = v('py');
+    const left = px - ax * BW, bottom = py - ay * BH;
+    const r = $('.box', el); r.setAttribute('x', OX + left); r.setAttribute('y', OY - (bottom + BH));
+    $('.cross', el).setAttribute('transform', 'translate(' + (OX + px) + ',' + (OY - py) + ')');
+    $('[data-r=ax]', el).textContent = ax.toFixed(1); $('[data-r=ay]', el).textContent = ay.toFixed(1); $('[data-r=px]', el).textContent = px; $('[data-r=py]', el).textContent = py;
+    const n = a => Math.round(a * 10) / 10;
+    $('[data-r=edges]', el).innerHTML = L('left ', '左 ') + '<b>' + n(left) + '</b> · ' + L('right ', '右 ') + '<b>' + n(left + BW) + '</b> · ' + L('bottom ', '下 ') + '<b>' + n(bottom) + '</b> · ' + L('top ', '上 ') + '<b>' + n(bottom + BH) + '</b>';
+  };
+  el.addEventListener('input', draw);
+  draw();
+};
+
 /* ---------- progress code (carry progress between devices) ---------- */
 function exportCode() {
   const json = JSON.stringify({ v: 1, done: S.done, quiz: S.quiz, ready: S.ready });
@@ -992,12 +1275,14 @@ main.addEventListener('click', e => {
   const l = BY[active];
   if (a === 'done' && l) {
     S.done[l.id] = true; touch();
-    const next = ALL[l.i + 1];
+    const next = TRK[l.mod.track][l.ti + 1];
     if (next) location.hash = '#' + next.id; else location.hash = '#home';
   } else if (a === 'undone' && l) {
     delete S.done[l.id]; touch(); route(true);
   } else if (a === 'resetquiz' && l) {
     delete S.quiz[l.id]; touch(); route(true);
+  } else if (a === 'todeep') {
+    const dp = $('#deep'); if (dp) dp.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (a === 'newreview') {
     route();
   } else if (a === 'exportprog') {
@@ -1040,7 +1325,7 @@ $('#q').addEventListener('input', e => {
   const a = INDEX.filter(x => x.title.includes(v));
   const b = INDEX.filter(x => !x.title.includes(v) && x.text.includes(v));
   const r = a.concat(b).slice(0, 8);
-  box.innerHTML = r.length ? r.map(x => '<a href="#' + x.l.id + '"><small>' + x.l.num + '</small>' + esc(lTitle(x.l)) + '</a>').join('') : '<p>' + L('No lesson matches.', '找不到相符的課。') + '</p>';
+  box.innerHTML = r.length ? r.map(x => '<a href="#' + x.l.id + '"><small>' + numOf(x.l) + '</small>' + esc(lTitle(x.l)) + '</a>').join('') : '<p>' + L('No lesson matches.', '找不到相符的課。') + '</p>';
   box.hidden = false;
 });
 document.addEventListener('click', e => { if (!e.target.closest('.search')) $('#hits').hidden = true; });
@@ -1051,7 +1336,8 @@ function route(keepScroll) {
   const h = location.hash.replace(/^#\/?(l\/)?/, '');   // plain names; the older #/l/<id> form still works
   document.body.classList.remove('nav');
   $('#hits').hidden = true;
-  if (BY[h]) { active = h; openMods[BY[active].mod.id] = true; viewLesson(BY[active]); }
+  if (BY[h]) { active = h; S.track = BY[h].mod.track; openMods[BY[active].mod.id] = true; viewLesson(BY[active]); }
+  else if (TRK[h]) { S.track = h; save(); active = 'home'; viewHome(); }
   else if (h === 'glossary') { active = 'glossary'; viewGlossary(); }
   else if (h === 'tools') { active = 'tools'; viewTools(); }
   else if (h === 'review') { active = 'review'; viewReview(); }

@@ -3,3 +3,6 @@ content/private.local.js
 .DS_Store
 claude-page.html
 guide/
+content/*.local.js
+tools/*.local.json
+tools/*.local.txt
