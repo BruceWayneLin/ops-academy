@@ -23,6 +23,10 @@ for (const f of files) {
   const P = [], got = {};
   try { const ctx = { DEEP: o => Object.assign(got, o) }; vm.createContext(ctx); vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f }); }
   catch (e) { console.log('FAIL ' + f + ': does not run: ' + e.message); bad = true; continue; }
+  // The chapter is a template literal: a lone backslash is dropped or changed by JavaScript, so code would display wrong.
+  const raw = fs.readFileSync(path.join(dir, f), 'utf8'); let lone = 0;
+  for (let i = 0; i < raw.length; i++) { if (raw[i] === '\\') { if ('\\`$'.includes(raw[i + 1] || '')) { i++; continue; } lone++; } }
+  if (lone) P.push(lone + ' single backslash(es): write \\\\ for each backslash that should appear on the page');
   const keys = Object.keys(got);
   if (keys.length !== 1 || keys[0] + '.js' !== f) P.push('file must call DEEP({ \'' + f.replace(/\.js$/, '') + '\': `...` }) with exactly that one key');
   for (const k of keys) {

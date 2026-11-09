@@ -373,15 +373,15 @@ log.Fatal(srv.ListenAndServeTLS("server.pem", "server-key.pem"))</code></pre>
 openssl s_client -connect api.example.com:443 -servername api.example.com -showcerts &lt;/dev/null
 
 # 只看到期日
-echo | openssl s_client -connect api.example.com:443 -servername api.example.com 2&gt;/dev/null \
+echo | openssl s_client -connect api.example.com:443 -servername api.example.com 2&gt;/dev/null \\
   | openssl x509 -noout -enddate
 
 # 舊版本應該被拒絕（OpenSSL 3 自己預設也不講 1.1，要把安全等級降到 0 才測得準）
-openssl s_client -connect api.example.com:443 -servername api.example.com \
+openssl s_client -connect api.example.com:443 -servername api.example.com \\
   -tls1_1 -cipher 'DEFAULT@SECLEVEL=0' &lt;/dev/null
 
 # 伺服器有沒有選 h2
-openssl s_client -connect api.example.com:443 -servername api.example.com \
+openssl s_client -connect api.example.com:443 -servername api.example.com \\
   -alpn h2,http/1.1 &lt;/dev/null 2&gt;/dev/null | grep ALPN
 
 # 私鑰和憑證是不是一對：兩行輸出要一模一樣

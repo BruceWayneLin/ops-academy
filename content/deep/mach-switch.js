@@ -338,7 +338,7 @@ DEEP({ 'mach-switch': `
 </svg><figcaption>編碼就是「把碼位的位元，照順序填進範本的空位」。所以 UTF-8 的「中」永遠是 E4 B8 AD，在哪一台電腦上都一樣。</figcaption></figure>
 <p>這個設計聰明在三個地方。第一，英文還是一個位元組，而且跟 ASCII 一模一樣，舊的英文檔案直接就是合法的 UTF-8。第二，接續的位元組一定以 10 開頭，從任何位置往回找，都找得到一個字的開頭，壞掉一個位元組也只會壞一個字。第三，除了真正的 0，任何字都不會產生 0 這個位元組，舊的 C 程式不會誤以為字串已經結束。它是 Ken Thompson 和 Rob Pike 在 1992 年設計的，今天超過九成八的網站都用它。</p>
 <h4>「字串長度」有四種意思</h4>
-<pre><code>const s = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+<pre><code>const s = '\\u{1F468}\\u200D\\u{1F469}\\u200D\\u{1F467}';
 new TextEncoder().encode(s).length; // 18
 s.length;                           // 8
 [...s].length;                      // 5
