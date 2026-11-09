@@ -51,6 +51,7 @@ const ZMOD = {}, ZLES = {};
   (m.lessons || []).forEach(l => { ZLES[l.id] = l; });
 });
 const PRIV = window.PRIVATE_NOTES || {};
+const EXTRA = Array.isArray(window.EXTRA_LINKS) ? window.EXTRA_LINKS : [];   // other study material declared by the entry page
 
 const zm = m => (zhOn() && ZMOD[m.id]) || null;
 const zl = l => (zhOn() && ZLES[l.id]) || null;
@@ -100,6 +101,7 @@ function renderSide() {
     o += '</ol></details>';
   });
   o += '<div class="side-links"><a href="#review">' + L('Review quiz', '複習測驗') + '</a><a href="#tools">' + L('Calculators', '計算機') + '</a><a href="#glossary">' + L('Glossary 中英對照', '詞彙表 中英對照') + '</a></div>';
+  if (EXTRA.length) o += '<div class="side-links"><p class="w-h">' + L('Other material', '其他教材') + '</p>' + EXTRA.map(x => '<a href="' + esc(x.href) + '">' + esc(B(x.title)) + '</a>').join('') + '</div>';
   const side = $('#side');
   const y = side.scrollTop;
   side.innerHTML = o;
@@ -164,6 +166,9 @@ function viewHome() {
   });
   o += '</div>';
 
+  if (EXTRA.length) {
+    o += '<h2>' + L('Other study material', '其他教材') + '</h2><div class="cards">' + EXTRA.map(x => '<a class="card" href="' + esc(x.href) + '"><div class="card-top"><span>' + esc(B(x.kind || ['Handbook', '手冊'])) + '</span><span>' + esc(B(x.lang || ['', ''])) + '</span></div><h3>' + esc(B(x.title)) + '</h3><p>' + esc(B(x.blurb || ['', ''])) + '</p></a>').join('') + '</div>';
+  }
   o += '<h2>' + L('How to use this', '怎麼使用') + '</h2><div class="how"><ul>' + L(
     '<li><b>One lesson per sitting.</b> Read it (10 to 15 minutes), run the &ldquo;Try it&rdquo; commands, answer the questions. Five evenings a week finishes the course in about six months.</li>' +
     '<li><b>Do the &ldquo;On your own stack&rdquo; task.</b> Reading gives you vocabulary. The task gives you the skill and something to show in an interview. Module 9 turns these tasks into a portfolio.</li>' +
